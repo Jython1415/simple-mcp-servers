@@ -8,13 +8,15 @@ A simple MCP server for converting deer.social links to Bluesky-compatible forma
 
 import re
 import sys
+import time
 import json
+import signal
+import threading
 from typing import Dict, Any
 from fastmcp import FastMCP
 from pydantic import Field
 
-# Initialize the MCP server - Let FastMCP handle its own lifecycle
-# and properly respond to the initialization messages from Claude
+# Create the FastMCP server
 mcp = FastMCP(
     "deer-to-bsky",
     dependencies=["fastmcp"],
@@ -37,7 +39,7 @@ async def convert_deer_to_bsky(
     Returns:
         A dictionary containing converted formats for use with Bluesky tools
     """
-    # Log the request to the error log
+    # Log the request to stderr
     print(f"[DEBUG] Processing URL: {url}", file=sys.stderr)
     
     result = {
@@ -88,11 +90,34 @@ async def test_conversion() -> Dict[str, Any]:
     print(f"[DEBUG] Test result: {json.dumps(result)}", file=sys.stderr)
     return result
 
+# Set up a signal handler for graceful shutdown
+def signal_handler(sig, frame):
+    print("\nReceived signal to shutdown.", file=sys.stderr)
+    sys.exit(0)
+
+# Keep the server alive with a dedicated thread
+def keep_alive():
+    while True:
+        try:
+            time.sleep(10)
+            print("[DEBUG] Server still running...", file=sys.stderr)
+        except KeyboardInterrupt:
+            break
+
 if __name__ == "__main__":
     print("Starting deer-to-bsky MCP server...", file=sys.stderr)
     print("This server provides tools for converting deer.social links to Bluesky formats", file=sys.stderr)
     print("Server is running and communicating through stdio with JSON-RPC", file=sys.stderr)
     print("Debug logs will appear on stderr", file=sys.stderr)
     
-    # Let FastMCP take care of everything - no manual sleep loop needed
-    # FastMCP will listen for JSON-RPC messages and dispatch them to our tools
+    # Set up signal handler
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    # Start a keep-alive thread
+    keep_alive_thread = threading.Thread(target=keep_alive, daemon=True)
+    keep_alive_thread.start()
+    
+    # Wait for the keep-alive thread to finish (it won't unless the process is terminated)
+    # This keeps the main thread alive
+    keep_alive_thread.join()
