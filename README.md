@@ -42,17 +42,15 @@ python main.py
 
 The server will start at http://localhost:8000
 
-## API Endpoints
+## MCP Protocol
 
-### GET /mcp-spec
+This server implements the Machine Capabilities Protocol (MCP), which uses WebSockets and JSON-RPC for communication. It supports the following functions:
 
-Returns the MCP specification for this server.
-
-### POST /convert-deer-to-bsky
+### convert-deer-to-bsky
 
 Converts a deer.social URL to a Bluesky AT URI.
 
-Request body:
+Parameters:
 ```json
 {
   "url": "https://deer.social/profile/did:plc:h25avmes6g7fgcddc3xj7qmg/post/3loxuoxb5ts2w"
@@ -94,7 +92,12 @@ Example configuration (add to `.dotfiles/claude/claude_desktop_config.template.j
       "run",
       "python",
       "main.py"
-    ]
+    ],
+    "env": {
+      "PYTHONUNBUFFERED": "1"
+    }
   }
 }
 ```
+
+The `PYTHONUNBUFFERED=1` environment variable ensures that Python stdout/stderr output is sent immediately to the log file, which is helpful for debugging.
