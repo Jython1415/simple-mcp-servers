@@ -4,23 +4,16 @@
 
 """
 A simple MCP server for converting deer.social links to Bluesky-compatible formats.
-
-Usage with uv:
-1. Install uv: pip install uv
-2. Create venv and install dependencies: uv venv && source .venv/bin/activate && uv pip install fastmcp
-3. Run the script: uv run python -m deer_to_bsky
 """
 
-from fastmcp import FastMCP
-from pydantic import Field
 import re
 from typing import Dict, Any
+import time
+from fastmcp import FastMCP
+from pydantic import Field
 
-# Initialize the FastMCP server
-mcp = FastMCP(
-    "deer-to-bsky",
-    dependencies=["fastmcp"],
-)
+# Create the FastMCP server
+mcp = FastMCP("deer-to-bsky", dependencies=["fastmcp"])
 
 # Regular expressions for parsing deer.social URLs
 DEER_PROFILE_REGEX = r"https://deer\.social/profile/([^/]+)/?$"
@@ -82,11 +75,15 @@ async def test_conversion() -> Dict[str, Any]:
     result = await convert_deer_to_bsky(test_url)
     return result
 
-def main():
+if __name__ == "__main__":
     print("Starting deer-to-bsky MCP server...")
     print("This server provides tools for converting deer.social links to Bluesky formats")
     print("Server is running and communicating through stdio with JSON-RPC")
-    # FastMCP handles the server startup automatically
-
-if __name__ == "__main__":
-    main()
+    
+    # Keep the script running indefinitely
+    while True:
+        try:
+            time.sleep(1)
+        except KeyboardInterrupt:
+            print("\nServer stopped")
+            break
