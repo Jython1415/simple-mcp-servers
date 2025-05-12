@@ -3,7 +3,7 @@ name = "deer-to-bsky-mcp"
 version = "0.1.0"
 description = "MCP server that converts deer.social links to Bluesky AT URIs"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"  # Changed from 3.9 to 3.10
 license = {text = "MIT"}
 authors = [
     {name = "Joshua", email = "example@example.com"}
@@ -26,4 +26,4 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"  # Changed from py39 to py310
