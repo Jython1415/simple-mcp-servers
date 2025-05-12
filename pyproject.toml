@@ -1,29 +1,13 @@
-[project]
+[tool.poetry]
 name = "deer-to-bsky-mcp"
 version = "0.1.0"
-description = "MCP server that converts deer.social links to Bluesky AT URIs"
-readme = "README.md"
-requires-python = ">=3.10"  # Changed from 3.9 to 3.10
-license = {text = "MIT"}
-authors = [
-    {name = "Joshua", email = "example@example.com"}
-]
+description = "MCP server for converting deer.social links to Bluesky formats"
+authors = ["Your Name <your.email@example.com>"]
 
-dependencies = [
-    "mcp[cli]>=1.2.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "black>=24.0.0",
-    "ruff>=0.2.0",
-]
+[tool.poetry.dependencies]
+python = "^3.10"
+fastmcp = "^0.1.0"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.ruff]
-line-length = 100
-target-version = "py310"  # Changed from py39 to py310
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

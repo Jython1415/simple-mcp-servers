@@ -1,103 +1,49 @@
-# Deer.social to Bluesky MCP Converter
+# Deer.social to Bluesky MCP Server
 
-An MCP (Machine Capabilities Protocol) server that converts deer.social URLs to Bluesky AT URIs, allowing AI assistants to process deer.social links and retrieve content from Bluesky.
+A simple MCP (Multi-Context Provider) server that converts deer.social links to Bluesky-compatible formats for use with Claude's Bluesky MCP tools.
 
 ## Features
 
-- Converts deer.social profile post URLs to Bluesky AT URIs
-- Converts deer.social profile URLs to Bluesky AT URIs
-- Implements the MCP specification for integration with AI assistants
+- Converts deer.social post URLs to Bluesky AT URI format
+- Identifies profile URLs (though handle resolution requires additional steps)
+- Provides direct parameters for use with existing Bluesky tools
 
 ## Installation
 
-This project uses `uv` for package management. Make sure you have `uv` installed:
+1. Create a Python virtual environment using `uv`:
 
 ```bash
-curl -sSf https://astral.sh/uv/install.sh | sh
-```
-
-Then, create a virtual environment and install the dependencies:
-
-```bash
-# Create and activate a virtual environment
+cd /Users/Joshua/Documents/_programming/deer-to-bsky-mcp
 uv venv
-source .venv/bin/activate  # On Unix/macOS
-# OR .venv\Scripts\activate  # On Windows
-
-# Install dependencies
-uv pip install -e .
+source .venv/bin/activate  # On macOS/Linux
+# or .venv\Scripts\activate # On Windows
 ```
 
-For development dependencies:
+2. Install dependencies:
 
 ```bash
-uv pip install -e ".[dev]"
+uv pip install fastmcp
 ```
 
-## Running the server
+## Usage
+
+Run the server:
 
 ```bash
-python main.py
+python deer_to_bsky.py
 ```
 
-The server will start at http://localhost:8000
+The server communicates through stdio using JSON-RPC, which makes it compatible with Claude's MCP integration.
 
-## MCP Protocol
+## Example
 
-This server implements the Machine Capabilities Protocol (MCP), which uses WebSockets and JSON-RPC for communication. It supports the following functions:
+Converting: `https://deer.social/profile/did:plc:h25avmes6g7fgcddc3xj7qmg/post/3loxuoxb5ts2w`
 
-### convert-deer-to-bsky
+Results in:
+- AT URI: `at://did:plc:h25avmes6g7fgcddc3xj7qmg/app.bsky.feed.post/3loxuoxb5ts2w`
+- Bluesky tool to use: `get-post-thread`
+- Parameters: `{"uri": "at://did:plc:h25avmes6g7fgcddc3xj7qmg/app.bsky.feed.post/3loxuoxb5ts2w"}`
 
-Converts a deer.social URL to a Bluesky AT URI.
+## Connecting to Claude
 
-Parameters:
-```json
-{
-  "url": "https://deer.social/profile/did:plc:h25avmes6g7fgcddc3xj7qmg/post/3loxuoxb5ts2w"
-}
-```
-
-Response:
-```json
-{
-  "at_uri": "at://did:plc:h25avmes6g7fgcddc3xj7qmg/app.bsky.feed.post/3loxuoxb5ts2w"
-}
-```
-
-## Examples
-
-### Converting a profile post URL
-
-Input: `https://deer.social/profile/did:plc:h25avmes6g7fgcddc3xj7qmg/post/3loxuoxb5ts2w`
-Output: `at://did:plc:h25avmes6g7fgcddc3xj7qmg/app.bsky.feed.post/3loxuoxb5ts2w`
-
-### Converting a profile URL
-
-Input: `https://deer.social/profile/did:plc:h25avmes6g7fgcddc3xj7qmg`
-Output: `at://did:plc:h25avmes6g7fgcddc3xj7qmg`
-
-## Integration with Claude's Bluesky MCP
-
-This server can be configured in your Claude desktop app configuration to enable conversion of deer.social links.
-
-Example configuration (add to `.dotfiles/claude/claude_desktop_config.template.json`):
-
-```json
-"mcpServers": {
-  "deer-to-bsky": {
-    "command": "/Users/Joshua/.local/bin/uv",
-    "args": [
-      "--directory",
-      "/Users/Joshua/Documents/_programming/deer-to-bsky-mcp",
-      "run",
-      "python",
-      "main.py"
-    ],
-    "env": {
-      "PYTHONUNBUFFERED": "1"
-    }
-  }
-}
-```
-
-The `PYTHONUNBUFFERED=1` environment variable ensures that Python stdout/stderr output is sent immediately to the log file, which is helpful for debugging.
+Add to Claude's config.json to enable this MCP server.
