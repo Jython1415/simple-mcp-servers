@@ -45,16 +45,14 @@
       }
     },
     "deer-to-bsky": {
-      "command": "/Users/Joshua/.local/bin/uv",
+      "command": "uv",
       "args": [
+        "--directory",
+        "/Users/Joshua/Documents/_programming/deer-to-bsky-mcp",
         "run",
         "python",
         "-m",
-        "fastmcp",
-        "serve",
-        "deer_to_bsky",
-        "--directory",
-        "/Users/Joshua/Documents/_programming/deer-to-bsky-mcp"
+        "deer_to_bsky"
       ]
     }
   }
