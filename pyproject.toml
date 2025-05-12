@@ -1,13 +1,18 @@
-[tool.poetry]
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
 name = "deer-to-bsky-mcp"
 version = "0.1.0"
 description = "MCP server for converting deer.social links to Bluesky formats"
-authors = ["Your Name <your.email@example.com>"]
+authors = [
+    {name = "Developer", email = "example@example.com"}
+]
+requires-python = ">=3.10"  # Updated to match fastmcp requirements
+dependencies = [
+    "fastmcp>=0.1.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-fastmcp = "^0.1.0"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+[tool.setuptools]
+py-modules = ["deer_to_bsky"]

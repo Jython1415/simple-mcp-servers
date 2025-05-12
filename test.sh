@@ -8,10 +8,12 @@ set -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 VENV_DIR="$DIR/.venv"
 
-# Make sure virtual environment exists
+# Install dependencies if needed
 if [ ! -d "$VENV_DIR" ]; then
-    echo "Virtual environment not found. Running install script first..."
-    bash "$DIR/install.sh"
+    echo "Installing dependencies..."
+    cd "$DIR"
+    uv venv
+    uv pip install fastmcp
 fi
 
 echo "Testing deer-to-bsky MCP server..."
@@ -25,6 +27,6 @@ echo ""
 echo "Starting server in 3 seconds..."
 sleep 3
 
-# Run the server
+# Run directly with uv
 cd "$DIR"
-/Users/Joshua/.local/bin/uv run python deer_to_bsky.py
+uv run python -m deer_to_bsky

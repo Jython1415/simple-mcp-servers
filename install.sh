@@ -25,13 +25,14 @@ echo ""
 echo "To add this MCP server to Claude, add the following to your Claude config:"
 echo ""
 echo '  "deer-to-bsky": {'
-echo '    "command": "/Users/Joshua/.local/bin/uv",'
+echo '    "command": "uv",'
 echo '    "args": ['
-echo '      "--directory",'
-echo '      "'"$DIR"'",'
 echo '      "run",'
 echo '      "python",'
-echo '      "deer_to_bsky.py"'
+echo '      "-m",'
+echo '      "deer_to_bsky",'
+echo '      "--directory",'
+echo '      "'"$DIR"'"'
 echo '    ]'
 echo '  }'
 echo ""
