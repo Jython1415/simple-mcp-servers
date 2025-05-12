@@ -1,0 +1,58 @@
+{
+  "globalShortcut": "Ctrl+Space",
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/Joshua/Documents/obsidian-main-vault",
+        "/Users/Joshua/.dotfiles",
+        "/Users/Joshua/Library/Logs/Claude",
+        "/Users/Joshua/Documents/_programming"
+      ]
+    },
+    "huggingface": {
+      "command": "/Users/Joshua/.local/bin/uv",
+      "args": [
+        "--directory",
+        "/Users/Joshua/Documents/_programming/huggingface-mcp-server",
+        "run",
+        "huggingface"
+      ]
+    },
+    "memory": {
+      "command": "/Users/Joshua/.local/bin/uvx",
+      "args": [
+        "--refresh",
+        "--quiet",
+        "mcp-memory-py"
+      ],
+      "env": {
+        "MEMORY_FILE_PATH": "/Users/Joshua/Documents/_personal/ai-therapy/memory.json"
+      }
+    },
+    "run-python": {
+      "command": "/Users/Joshua/.dotfiles/bin/mcp-run-python-wrapper.sh"
+    },
+    "bluesky": {
+      "command": "node",
+      "args": ["/Users/Joshua/Documents/_programming/bsky-mcp-server/build/src/index.js"],
+      "env": {
+        "BLUESKY_IDENTIFIER": "{{ BLUESKY_IDENTIFIER }}",
+        "BLUESKY_APP_PASSWORD": "{{ BLUESKY_APP_PASSWORD }}",
+        "BLUESKY_SERVICE_URL": "https://bsky.social"
+      }
+    },
+    "deer-to-bsky": {
+      "command": "/Users/Joshua/.local/bin/uv",
+      "args": [
+        "--directory",
+        "/Users/Joshua/Documents/_programming/deer-to-bsky-mcp",
+        "run",
+        "python",
+        "deer_to_bsky.py"
+      ]
+    }
+  }
+}
