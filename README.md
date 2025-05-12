@@ -25,3 +25,9 @@ Sample configuration below:
 }
 ```
 
+## History
+
+If you check the commit history, you can see that I initially vibe coded this with Claude and it was a mess. Afterwards, I fixed up the boilerplate/structure and it works fine.
+
+TBH the failure was my own. I forgot how to set up a MCP server nicely and this was the first time I used FastMCP.
+
