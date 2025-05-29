@@ -8,6 +8,7 @@ This file contains notes for Claude to understand the project structure and faci
 **Purpose**: Collection of one-file MCP (Model Context Protocol) servers written in Python  
 **License**: MIT License (Copyright 2025 Joshua Shew)  
 **Primary Language**: Python
+**Dependency Management**: PEP 723 inline script metadata (self-contained scripts)
 
 ## Project Structure
 
@@ -45,15 +46,17 @@ simple-mcp-servers/
       "command": "/Users/Joshua/.local/bin/uv",
       "args": [
         "run",
-        "--with",
-        "fastmcp",
-        "--with",
-        "pydantic",
+        "--script",
         "/path/to/deer_to_bsky.py"
       ]
     }
   }
 }
+```
+
+**Direct Execution**: The file is executable and can be run directly:
+```bash
+./deer_to_bsky.py
 ```
 
 ### 2. large_file_reader_mcp.py
@@ -79,15 +82,17 @@ simple-mcp-servers/
       "command": "/Users/Joshua/.local/bin/uv",
       "args": [
         "run",
-        "--with",
-        "fastmcp",
-        "--with",
-        "pydantic",
+        "--script",
         "/path/to/large_file_reader_mcp.py"
       ]
     }
   }
 }
+```
+
+**Direct Execution**: The file is executable and can be run directly:
+```bash
+./large_file_reader_mcp.py
 ```
 
 ### 3. time_god_mcp.py
@@ -100,16 +105,20 @@ simple-mcp-servers/
 ## Development Patterns
 
 ### Standard Structure (Based on deer_to_bsky.py)
-1. **Header Docstring**: Comprehensive documentation with Claude configuration example
-2. **Imports**: Standard Python imports + MCP framework imports
-3. **Server Creation**: `mcp = FastMCP("server-name")`
-4. **Tool Definitions**: Functions decorated with `@mcp.tool()`
-5. **Server Execution**: `mcp.run()`
+1. **Shebang Line**: `#!/usr/bin/env -S uv run --script` for direct execution
+2. **PEP 723 Metadata Block**: Dependencies and Python version requirements
+3. **Header Docstring**: Comprehensive documentation with Claude configuration example
+4. **Imports**: Standard Python imports + MCP framework imports
+5. **Server Creation**: `mcp = FastMCP("server-name")`
+6. **Tool Definitions**: Functions decorated with `@mcp.tool()`
+7. **Server Execution**: `mcp.run()`
 
 ### Dependencies Management
 - Uses `uv` package manager
-- Dependencies specified via `--with` flags in configuration
-- No requirements.txt file (dependencies managed at runtime)
+- Dependencies declared using PEP 723 inline script metadata
+- No requirements.txt file needed (dependencies embedded in each script)
+- All servers use the same dependencies: `fastmcp` and `pydantic`
+- Python version requirement: `>=3.11`
 
 ### Code Style Observations
 - Type hints using Pydantic `Field` for parameter descriptions
@@ -139,24 +148,39 @@ simple-mcp-servers/
 ### Adding New MCP Servers
 
 1. **File Naming**: Use descriptive names with `_mcp.py` suffix
-2. **Documentation**: Include comprehensive docstring with:
+2. **PEP 723 Header**: Start every new server with:
+   ```python
+   #!/usr/bin/env -S uv run --script
+   # /// script
+   # requires-python = ">=3.11"
+   # dependencies = [
+   #     "fastmcp",
+   #     "pydantic"
+   # ]
+   # ///
+   ```
+3. **Documentation**: Include comprehensive docstring with:
    - Purpose description
-   - Claude configuration example
-   - Dependencies list
+   - Claude configuration example (using `--script`)
    - Usage instructions
-3. **Structure**: Follow deer_to_bsky.py pattern:
+4. **Structure**: Follow deer_to_bsky.py pattern:
+   - Shebang line
+   - PEP 723 metadata
    - Header documentation
    - Imports
    - Server creation
    - Tool definitions with type hints
    - Error handling
    - Server execution
-4. **Testing**: Consider adding test files following existing pattern
+5. **Make Executable**: Run `chmod +x your_server_mcp.py`
+6. **Testing**: Consider adding test files following existing pattern
 
 ### Configuration Management
 - Each server should include its own Claude configuration example
-- Use uv with `--with` flags for dependency management
+- Use uv with `--script` flag for running PEP 723 scripts
+- Dependencies are declared in the script itself
 - Maintain single-file architecture for simplicity
+- Scripts can be run directly if made executable
 
 ### Best Practices
 - Include comprehensive type hints and docstrings
@@ -167,10 +191,10 @@ simple-mcp-servers/
 
 ## Known Issues/Todo
 
-1. **Documentation**: Expand README.md with individual server descriptions
+1. **Documentation**: Expand README.md with individual server descriptions and PEP 723 benefits
 2. **Testing**: Consider adding unit tests for server functionality
-3. **Dependencies**: Evaluate if requirements.txt would be beneficial
-4. **Tool Limitations**: Current file reading tools don't handle very large files well
+3. ~~**Dependencies**: Evaluate if requirements.txt would be beneficial~~ **SOLVED** - Using PEP 723 inline metadata
+4. ~~**Tool Limitations**: Current file reading tools don't handle very large files well~~ **SOLVED** - Implemented large file reader MCP
 
 ## Collaboration Notes
 
@@ -190,3 +214,4 @@ simple-mcp-servers/
 
 *Last Updated: May 29, 2025*  
 *Created by: Claude (Sonnet 4) for collaboration with Joshua*
+*Transitioned to PEP 723: May 29, 2025 by Claude (Opus 4)*
