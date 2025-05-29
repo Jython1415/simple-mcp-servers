@@ -30,13 +30,19 @@ simple-mcp-servers/
 ### 1. deer_to_bsky.py
 - **Purpose**: Converts deer.social URLs to Bluesky-compatible formats
 - **Framework**: FastMCP
-- **Dependencies**: `fastmcp`, `pydantic`
+- **Dependencies**: `fastmcp`, `pydantic`, `httpx`
 - **Key Features**:
   - Regex-based URL parsing for deer.social profiles and posts
-  - Converts to AT URI format
+  - DID-to-handle resolution using Bluesky API
+  - Converts to AT URI format for posts
   - Returns structured data for Bluesky tool compatibility
+  - Fallback to search when DID resolution fails
   - Includes error handling and debug logging
 - **Tools Provided**: `convert_deer_to_bsky`
+- **Recent Updates**: 
+  - **May 29, 2025**: Added DID resolution capability to fix profile retrieval issue
+  - Now resolves DIDs like `did:plc:xyz` to handles like `user.bsky.social`
+  - Falls back to `search-people` tool when DID resolution fails
 
 **Configuration Example**:
 ```json
@@ -195,6 +201,7 @@ simple-mcp-servers/
 2. **Testing**: Consider adding unit tests for server functionality
 3. ~~**Dependencies**: Evaluate if requirements.txt would be beneficial~~ **SOLVED** - Using PEP 723 inline metadata
 4. ~~**Tool Limitations**: Current file reading tools don't handle very large files well~~ **SOLVED** - Implemented large file reader MCP
+5. ~~**DID Resolution**: deer_to_bsky.py couldn't resolve DIDs to handles for profile lookups~~ **SOLVED** - Added DID-to-handle resolution via Bluesky API (May 29, 2025)
 
 ## Collaboration Notes
 
