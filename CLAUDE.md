@@ -13,14 +13,15 @@ This file contains notes for Claude to understand the project structure and faci
 
 ```
 simple-mcp-servers/
-├── .git/                    # Git repository
-├── .gitignore              # Python-specific gitignore
-├── LICENSE                 # MIT License
-├── README.md               # Basic project description
-├── __pycache__/            # Python cache (gitignored)
-├── deer_to_bsky.py         # MCP server for deer.social → Bluesky URL conversion
-├── time_god_mcp.py         # Large MCP server (3.6MB) - purpose TBD
-└── CLAUDE.md               # This file - collaboration notes
+├── .git/                         # Git repository
+├── .gitignore                   # Python-specific gitignore
+├── LICENSE                      # MIT License
+├── README.md                    # Basic project description
+├── __pycache__/                 # Python cache (gitignored)
+├── deer_to_bsky.py              # MCP server for deer.social → Bluesky URL conversion
+├── large_file_reader_mcp.py     # MCP server for reading large files in parts
+├── time_god_mcp.py              # Large MCP server (3.6MB) - Scrabble word list
+└── CLAUDE.md                    # This file - collaboration notes
 ```
 
 ## Existing MCP Servers
@@ -55,7 +56,41 @@ simple-mcp-servers/
 }
 ```
 
-### 2. time_god_mcp.py
+### 2. large_file_reader_mcp.py
+- **Purpose**: Read large files in parts, addressing limitations of standard file reading tools
+- **Framework**: FastMCP
+- **Dependencies**: `fastmcp`, `pydantic`
+- **Key Features**:
+  - Line-based reading with specific ranges
+  - Head/tail operations for efficient file inspection
+  - Byte-based reading for binary file support
+  - Pattern search with context lines
+  - File metadata without full content loading
+  - Chunked reading for incremental processing
+  - Encoding detection and error handling
+- **Tools Provided**: `get_file_stats`, `read_file_lines`, `read_file_head`, `read_file_tail`, `read_file_bytes`, `search_file_lines`, `read_file_chunk`
+- **Use Cases**: Large log files, source code inspection, dataset analysis, file headers/footers
+
+**Configuration Example**:
+```json
+{
+  "mcpServers": {
+    "large-file-reader": {
+      "command": "/Users/Joshua/.local/bin/uv",
+      "args": [
+        "run",
+        "--with",
+        "fastmcp",
+        "--with",
+        "pydantic",
+        "/path/to/large_file_reader_mcp.py"
+      ]
+    }
+  }
+}
+```
+
+### 3. time_god_mcp.py
 - **Purpose**: Scrabble-related MCP server
 - **Size**: 3.6MB (contains entire Scrabble word list embedded in code)
 - **Created**: May 22, 2025
@@ -146,9 +181,9 @@ simple-mcp-servers/
 
 ## Tool Limitations Discovered
 
-- **Large File Reading**: File reading tools struggle with files >1MB (like time_god_mcp.py)
+- **Large File Reading**: ~~File reading tools struggle with files >1MB (like time_god_mcp.py)~~ **SOLVED** - Implemented `large_file_reader_mcp.py` for partial file access
 - **Sandboxed Python**: `run_python_code` tool is sandboxed and cannot access external files
-- **Partial File Access**: No current tool for reading just the beginning/end of large files
+- **Partial File Access**: ~~No current tool for reading just the beginning/end of large files~~ **SOLVED** - Now available via large file reader MCP
 - **Future Enhancement**: User may provide read-only command-line access for better file inspection
 
 ---
