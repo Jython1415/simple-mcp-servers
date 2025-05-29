@@ -1,3 +1,13 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "fastmcp",
+#     "pydantic"
+# ]
+# ///
+
+
 """
 # Time God MCP Server
 
@@ -13,10 +23,7 @@ Validates English words and checks for distinctness.
       "command": "/Users/Joshua/.local/bin/uv",
       "args": [
         "run",
-        "--with",
-        "fastmcp",
-        "--with",
-        "pydantic",
+        "--script",
         "/Users/Joshua/Documents/_programming/simple-mcp-servers/time_god_mcp.py"
       ]
     }

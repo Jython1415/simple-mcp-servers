@@ -1,3 +1,12 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "fastmcp",
+#     "pydantic"
+# ]
+# ///
+
 """
 # Deer to Bluesky
 
@@ -14,11 +23,8 @@ Sample configuration below:
       "command": "/Users/Joshua/.local/bin/uv",
       "args": [
         "run",
-        "--with",
-        "fastmcp",
-        "--with",
-        "pydantic",
-        "/Users/Joshua/Documents/_programming/deer-to-bsky-mcp/deer_to_bsky.py"
+        "--script",
+        "/Users/Joshua/Documents/_programming/simple-mcp-servers/deer_to_bsky.py"
       ]
     },
     "other servers here": {}

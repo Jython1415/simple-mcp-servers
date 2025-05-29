@@ -1,3 +1,12 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "fastmcp",
+#     "pydantic"
+# ]
+# ///
+
 """
 # Large File Reader MCP Server
 
@@ -15,10 +24,7 @@ Sample configuration:
       "command": "/Users/Joshua/.local/bin/uv",
       "args": [
         "run",
-        "--with",
-        "fastmcp",
-        "--with",
-        "pydantic",
+        "--script",
         "/Users/Joshua/Documents/_programming/simple-mcp-servers/large_file_reader_mcp.py"
       ]
     }
