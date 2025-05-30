@@ -20,6 +20,7 @@ simple-mcp-servers/
 ├── README.md                    # Basic project description
 ├── __pycache__/                 # Python cache (gitignored)
 ├── deer_to_bsky.py              # MCP server for deer.social → Bluesky URL conversion
+├── github_repo_mcp.py           # MCP server for filesystem-like navigation of GitHub repositories
 ├── large_file_reader_mcp.py     # MCP server for reading large files in parts
 ├── time_god_mcp.py              # Large MCP server (3.6MB) - Scrabble word list
 └── CLAUDE.md                    # This file - collaboration notes
@@ -101,7 +102,47 @@ simple-mcp-servers/
 ./large_file_reader_mcp.py
 ```
 
-### 3. time_god_mcp.py
+### 3. github_repo_mcp.py
+- **Purpose**: Provides filesystem-like navigation of public GitHub repositories with intelligent token-based safety limits
+- **Framework**: FastMCP
+- **Dependencies**: `fastmcp`, `pydantic`, `requests`, `tiktoken`
+- **Key Features**:
+  - Filesystem-like directory listing and navigation
+  - Recursive directory tree view with configurable depth
+  - File metadata retrieval without reading contents
+  - Intelligent file reading with token safety limits (5,000 token default)
+  - Binary file detection and handling
+  - Rate limiting awareness with helpful error messages
+  - Optional GitHub token authentication for higher limits
+  - Token counting using tiktoken to prevent context overflow
+  - Self-documenting error messages with alternative suggestions
+- **Tools Provided**: `repo_list_directory`, `repo_tree_view`, `repo_file_info`, `repo_read_file`
+- **Environment Variables**: `GITHUB_TOKEN` (optional for higher rate limits)
+- **Use Cases**: Code exploration, repository analysis, documentation reading, file inspection
+- **Safety Features**: Binary detection, token limits, intelligent truncation with continuation guidance
+
+**Configuration Example**:
+```json
+{
+  "mcpServers": {
+    "github-repo": {
+      "command": "/Users/Joshua/.local/bin/uv",
+      "args": [
+        "run",
+        "--script",
+        "/path/to/github_repo_mcp.py"
+      ]
+    }
+  }
+}
+```
+
+**Direct Execution**: The file is executable and can be run directly:
+```bash
+./github_repo_mcp.py
+```
+
+### 4. time_god_mcp.py
 - **Purpose**: Scrabble-related MCP server
 - **Size**: 3.6MB (contains entire Scrabble word list embedded in code)
 - **Created**: May 22, 2025
@@ -214,11 +255,12 @@ simple-mcp-servers/
 
 - **Large File Reading**: ~~File reading tools struggle with files >1MB (like time_god_mcp.py)~~ **SOLVED** - Implemented `large_file_reader_mcp.py` for partial file access
 - **Sandboxed Python**: `run_python_code` tool is sandboxed and cannot access external files
+- **File Permissions**: `run_python_code` tool cannot modify file permissions (e.g., `chmod +x`) due to sandboxed environment
 - **Partial File Access**: ~~No current tool for reading just the beginning/end of large files~~ **SOLVED** - Now available via large file reader MCP
 - **Future Enhancement**: User may provide read-only command-line access for better file inspection
 
 ---
 
-*Last Updated: May 29, 2025*  
+*Last Updated: May 30, 2025*  
 *Created by: Claude (Sonnet 4) for collaboration with Joshua*
 *Transitioned to PEP 723: May 29, 2025 by Claude (Opus 4)*
