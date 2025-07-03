@@ -101,6 +101,42 @@ simple-mcp-servers/
 - Add debug logging for troubleshooting
 - Follow existing naming conventions
 - Keep servers focused and single-purpose
+- **Token Management**: Include max_files/max_results parameters with sensible defaults
+- **Response Metadata**: Add files_found, truncated fields for large result sets
+- **Backward Compatibility**: New parameters must have defaults, maintain existing response structure
+
+## Testing and Development Lessons
+
+### Testing MCP Functions
+- **Problem**: Functions decorated with `@mcp.tool()` cannot be called directly during testing
+- **Solution**: Create wrapper functions that replicate the core logic rather than trying to access decorated functions
+- **Pattern**: Use mock data with `tempfile.mkdtemp()` and environment variables for testing
+
+### Test Script Structure
+```python
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["fastmcp", "pydantic", "python-frontmatter", "pyyaml"]
+# ///
+```
+
+### Token Limit Management
+- **Default Limits**: max_files=100, max_results=50, max_depth=3
+- **Performance Options**: lazy_parsing=True, include_content=False
+- **Response Structure**: Always include metadata about truncation:
+  ```python
+  {
+      # ... normal fields ...
+      'files_found': total_found,
+      'truncated': total_found > returned_count
+  }
+  ```
+
+### Environment Management in Tests
+- Save/restore original environment variables
+- Reset global state between tests (`module.GLOBAL_VAR = None`)
+- Use try/finally blocks for cleanup
 
 ## Known Issues/Todo
 
@@ -115,5 +151,5 @@ simple-mcp-servers/
 
 ---
 
-*Last Updated: 2025-07-02*
+*Last Updated: 2025-07-03*
 *Created by: Claude (Sonnet 4) for collaboration with Joshua*
