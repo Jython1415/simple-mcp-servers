@@ -33,6 +33,13 @@ Sample configuration below:
 }
 ```
 
+## Claude Code Setup
+
+Add to Claude Code with:
+```bash
+claude mcp add deer-to-bsky /Users/Joshua/Documents/_programming/simple-mcp-servers/deer_to_bsky.py
+```
+
 ## History
 
 If you check the commit history, you can see that I initially vibe coded this with Claude and it was a mess. Afterwards, I fixed up the boilerplate/structure and it works fine.

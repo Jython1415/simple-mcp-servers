@@ -42,6 +42,13 @@ Sample configuration below:
 }
 ```
 
+## Claude Code Setup
+
+Add to Claude Code with:
+```bash
+claude mcp add github-repo /Users/Joshua/Documents/_programming/simple-mcp-servers/github_repo_mcp.py
+```
+
 ## Tools Provided
 
 - `repo_list_directory`: List contents of a directory in a GitHub repository

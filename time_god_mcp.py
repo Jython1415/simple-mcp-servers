@@ -30,6 +30,13 @@ Validates English words and checks for distinctness.
   }
 }
 ```
+
+## Claude Code Setup
+
+Add to Claude Code with:
+```bash
+claude mcp add time-god /Users/Joshua/Documents/_programming/simple-mcp-servers/time_god_mcp.py
+```
 """
 
 import sys

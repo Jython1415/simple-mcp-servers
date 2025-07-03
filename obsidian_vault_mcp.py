@@ -41,6 +41,13 @@ Configuration for Claude Desktop:
 }
 ```
 
+## Claude Code Setup
+
+Add to Claude Code with:
+```bash
+claude mcp add obsidian-vault /Users/Joshua/Documents/_programming/simple-mcp-servers/obsidian_vault_mcp.py --env OBSIDIAN_VAULT_PATH=/path/to/your/obsidian/vault
+```
+
 Direct execution:
 ```bash
 chmod +x obsidian_vault_mcp.py

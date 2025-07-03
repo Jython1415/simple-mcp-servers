@@ -32,6 +32,13 @@ Sample configuration:
 }
 ```
 
+## Claude Code Setup
+
+Add to Claude Code with:
+```bash
+claude mcp add large-file-reader /Users/Joshua/Documents/_programming/simple-mcp-servers/large_file_reader_mcp.py
+```
+
 ## Features
 
 - **Line-based reading**: Read specific line ranges from large files
