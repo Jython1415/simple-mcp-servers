@@ -56,6 +56,33 @@ OBSIDIAN_VAULT_PATH="/path/to/vault" ./obsidian_vault_mcp.py
 
 Environment Variables:
 - OBSIDIAN_VAULT_PATH: Path to your Obsidian vault directory (required)
+- OBSIDIAN_USAGE_INSTRUCTIONS: Custom usage instructions for this vault (optional)
+
+## Custom Usage Instructions
+
+The server provides a resource called `usage_instructions` that can contain custom guidance
+for working with your specific Obsidian vault. Instructions are loaded in priority order:
+
+1. **Environment Variable**: Set `OBSIDIAN_USAGE_INSTRUCTIONS` when configuring the server
+2. **CLAUDE.md File**: Place a `CLAUDE.md` file in your vault root directory
+3. **Default Message**: If neither are available, indicates no custom instructions
+
+Example with custom instructions:
+```bash
+claude mcp add obsidian-vault /path/to/obsidian_vault_mcp.py \
+  --env OBSIDIAN_VAULT_PATH=/path/to/vault \
+  --env OBSIDIAN_USAGE_INSTRUCTIONS="When searching for Claude instructions, filter by the #claude tag using required_tags=['claude']"
+```
+
+Example CLAUDE.md file content:
+```markdown
+# Claude Usage Instructions for My Vault
+
+- Use required_tags=['claude'] when searching for Claude-specific instructions
+- Personal notes are tagged with #personal
+- Work notes are tagged with #work
+- Meeting notes are in the meetings/ folder
+```
 """
 
 import os
@@ -408,7 +435,10 @@ def obsidian_global_search(
     directory_filter: str = Field(default="", description="Limit search to specific directory"),
     file_extension_filter: str = Field(default=".md", description="Filter by file extension"),
     context_lines: int = Field(default=2, description="Number of context lines around matches"),
-    max_results: int = Field(default=50, description="Maximum number of results to return")
+    max_results: int = Field(default=50, description="Maximum number of results to return"),
+    required_tags: List[str] = Field(default_factory=list, description="Only include results from notes that contain ALL of these tags"),
+    any_of_tags: List[str] = Field(default_factory=list, description="Only include results from notes that contain ANY of these tags"),
+    exclude_tags: List[str] = Field(default_factory=list, description="Exclude results from notes that contain any of these tags")
 ) -> Dict[str, Any]:
     """
     Search across the entire Obsidian vault for text, tags, or frontmatter.
@@ -428,16 +458,32 @@ def obsidian_global_search(
         file_extension_filter: Filter by file extension (default: .md)
         context_lines: Number of context lines to include around matches
         max_results: Maximum number of results to return
+        required_tags: Only include results from notes that contain ALL of these tags
+        any_of_tags: Only include results from notes that contain ANY of these tags
+        exclude_tags: Exclude results from notes that contain any of these tags
     
     Returns:
         Dictionary containing:
         - query: The search query used
         - total_matches: Total number of matches found
         - results: List of match result dictionaries
-        - search_stats: Statistics about the search
+        - search_stats: Statistics about the search (including tag filtering options)
     
     Raises:
         ValueError: If search parameters are invalid
+    
+    Examples:
+        # Search for "python" in notes that have the "programming" tag
+        obsidian_global_search("python", required_tags=["programming"])
+        
+        # Search for "AI" in notes that have either "machine-learning" or "deep-learning" tags
+        obsidian_global_search("AI", any_of_tags=["machine-learning", "deep-learning"])
+        
+        # Search for "tutorial" but exclude notes with "draft" tag
+        obsidian_global_search("tutorial", exclude_tags=["draft"])
+        
+        # Combined filtering: search for "API" in programming notes but exclude archived ones
+        obsidian_global_search("API", required_tags=["programming"], exclude_tags=["archived"])
     """
     try:
         vault_path = get_vault_path()
@@ -460,7 +506,7 @@ def obsidian_global_search(
         
         # Determine search directory
         search_dir = vault_path
-        if directory_filter:
+        if directory_filter and directory_filter.strip():
             search_dir = vault_path / directory_filter
             if not search_dir.exists() or not search_dir.is_dir():
                 raise ValueError(f"Directory filter path not found: {directory_filter}")
@@ -528,35 +574,76 @@ def obsidian_global_search(
             
             return matches
         
+        def should_include_by_tags(note_tags: List[str]) -> bool:
+            """Check if a note should be included based on tag filtering criteria."""
+            # Convert to lowercase for case-insensitive matching
+            note_tags_lower = [tag.lower() for tag in note_tags]
+            
+            # Check required_tags (must have ALL)
+            if required_tags:
+                required_tags_lower = [tag.lower() for tag in required_tags]
+                if not all(req_tag in note_tags_lower for req_tag in required_tags_lower):
+                    return False
+            
+            # Check any_of_tags (must have ANY)
+            if any_of_tags:
+                any_of_tags_lower = [tag.lower() for tag in any_of_tags]
+                if not any(any_tag in note_tags_lower for any_tag in any_of_tags_lower):
+                    return False
+            
+            # Check exclude_tags (must NOT have any)
+            if exclude_tags:
+                exclude_tags_lower = [tag.lower() for tag in exclude_tags]
+                if any(excl_tag in note_tags_lower for excl_tag in exclude_tags_lower):
+                    return False
+            
+            return True
+        
         # Walk through directory and search files
         for file_path in search_dir.rglob('*'):
             if not file_path.is_file():
                 continue
             
             # Apply file extension filter
-            if file_extension_filter and not file_path.suffix.lower() == file_extension_filter.lower():
+            if file_extension_filter and file_extension_filter.strip() and not file_path.suffix.lower() == file_extension_filter.lower():
                 continue
             
             files_searched += 1
             relative_path = str(file_path.relative_to(vault_path))
             
-            # Search in filename
+            # Search in filename (apply tag filtering if it's a markdown file)
             if search_filenames and pattern.search(file_path.name):
-                results.append({
-                    'file_path': relative_path,
-                    'content_type': 'filename',
-                    'matched_value': file_path.name
-                })
-                total_matches += 1
+                should_include = True
+                
+                # Apply tag filtering for markdown files
+                if is_markdown_file(file_path) and (required_tags or any_of_tags or exclude_tags):
+                    try:
+                        parsed = parse_note_file(file_path)
+                        should_include = should_include_by_tags(parsed['tags'])
+                    except Exception:
+                        # If we can't parse the file, skip tag filtering for filename matches
+                        pass
+                
+                if should_include:
+                    results.append({
+                        'file_path': relative_path,
+                        'content_type': 'filename',
+                        'matched_value': file_path.name
+                    })
+                    total_matches += 1
             
             # Skip non-markdown files for content search
-            if file_extension_filter == '.md' and not is_markdown_file(file_path):
+            if file_extension_filter and file_extension_filter.strip() == '.md' and not is_markdown_file(file_path):
                 continue
             
             try:
                 # Parse file
                 if is_markdown_file(file_path):
                     parsed = parse_note_file(file_path)
+                    
+                    # Apply tag filtering - skip this file if it doesn't match tag criteria
+                    if not should_include_by_tags(parsed['tags']):
+                        continue
                     
                     # Search in content
                     if search_content:
@@ -619,7 +706,10 @@ def obsidian_global_search(
                     'search_content': search_content,
                     'search_frontmatter': search_frontmatter,
                     'search_tags': search_tags,
-                    'search_filenames': search_filenames
+                    'search_filenames': search_filenames,
+                    'required_tags': required_tags,
+                    'any_of_tags': any_of_tags,
+                    'exclude_tags': exclude_tags
                 }
             }
         }
@@ -711,6 +801,44 @@ def obsidian_get_vault_info() -> Dict[str, Any]:
         
     except Exception as e:
         raise ValueError(f"Error getting vault info: {str(e)}")
+
+@mcp.resource("obsidian://usage-instructions")
+def usage_instructions() -> str:
+    """
+    Get custom usage instructions for this Obsidian vault.
+    
+    Checks for instructions in priority order:
+    1. OBSIDIAN_USAGE_INSTRUCTIONS environment variable
+    2. CLAUDE.md file in vault root
+    3. Default message if neither are available
+    
+    Returns:
+        String containing usage instructions or default message
+    """
+    try:
+        # Check environment variable first
+        env_instructions = os.environ.get("OBSIDIAN_USAGE_INSTRUCTIONS")
+        if env_instructions and env_instructions.strip():
+            return env_instructions.strip()
+        
+        # Check for CLAUDE.md file in vault root
+        try:
+            vault_path = get_vault_path()
+            claude_md_path = vault_path / "CLAUDE.md"
+            if claude_md_path.exists() and claude_md_path.is_file():
+                with open(claude_md_path, 'r', encoding='utf-8') as f:
+                    claude_content = f.read().strip()
+                if claude_content:
+                    return claude_content
+        except Exception:
+            # If we can't read CLAUDE.md, continue to default
+            pass
+        
+        # Default fallback
+        return "No custom usage instructions specified for this Obsidian vault."
+        
+    except Exception as e:
+        return f"Error retrieving usage instructions: {str(e)}"
 
 if __name__ == "__main__":
     # Validate environment on startup
