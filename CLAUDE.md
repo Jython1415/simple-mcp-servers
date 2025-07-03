@@ -101,9 +101,8 @@ simple-mcp-servers/
 - Add debug logging for troubleshooting
 - Follow existing naming conventions
 - Keep servers focused and single-purpose
-- **Token Management**: Include max_files/max_results parameters with sensible defaults
-- **Response Metadata**: Add files_found, truncated fields for large result sets
-- **Backward Compatibility**: New parameters must have defaults, maintain existing response structure
+- **Token Management**: Include max\_files/max\_results (or similar) parameters with sensible defaults
+- **Response Metadata**: For larger responses, communicate metadata (e.g. total files found)
 
 ## Testing and Development Lessons
 
@@ -121,14 +120,13 @@ simple-mcp-servers/
 # ///
 ```
 
+Call with `uv run --script`, not `python` or `./<file-name`
+
 ### Token Limit Management
-- **Default Limits**: max_files=100, max_results=50, max_depth=3
-- **Performance Options**: lazy_parsing=True, include_content=False
 - **Response Structure**: Always include metadata about truncation:
   ```python
   {
       # ... normal fields ...
-      'files_found': total_found,
       'truncated': total_found > returned_count
   }
   ```
@@ -137,10 +135,6 @@ simple-mcp-servers/
 - Save/restore original environment variables
 - Reset global state between tests (`module.GLOBAL_VAR = None`)
 - Use try/finally blocks for cleanup
-
-## Known Issues/Todo
-
-- None
 
 ## Collaboration Notes
 
