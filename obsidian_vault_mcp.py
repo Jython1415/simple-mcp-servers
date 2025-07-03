@@ -293,7 +293,9 @@ def obsidian_list_notes(
     include_subdirectories: bool = Field(default=True, description="Include subdirectories in results"),
     file_extension_filter: str = Field(default="", description="Filter by file extension (e.g., '.md', '.txt')"),
     name_pattern: str = Field(default="", description="Regex pattern to match file names"),
-    max_depth: int = Field(default=3, description="Maximum depth to traverse (0 for no limit)")
+    max_depth: int = Field(default=3, description="Maximum depth to traverse (0 for no limit)"),
+    max_files: int = Field(default=100, description="Maximum number of files to return (prevents token overflow)"),
+    lazy_parsing: bool = Field(default=True, description="Skip expensive tag/frontmatter parsing for better performance")
 ) -> Dict[str, Any]:
     """
     List notes and directories within the Obsidian vault.
@@ -307,6 +309,8 @@ def obsidian_list_notes(
         file_extension_filter: Filter by file extension (e.g., '.md', '.txt')
         name_pattern: Regex pattern to match file names (case-insensitive)
         max_depth: Maximum depth to traverse (0 for no limit)
+        max_files: Maximum number of files to return (prevents token overflow)
+        lazy_parsing: Skip expensive tag/frontmatter parsing for better performance
     
     Returns:
         Dictionary containing:
@@ -315,6 +319,8 @@ def obsidian_list_notes(
         - subdirectories: List of subdirectory names (if include_subdirectories=True)
         - total_files: Total number of files found
         - total_directories: Total number of directories found
+        - files_found: Total files found before max_files limit applied
+        - truncated: Whether results were truncated due to max_files limit
     
     Raises:
         FileNotFoundError: If the directory doesn't exist
@@ -343,6 +349,7 @@ def obsidian_list_notes(
         
         files = []
         subdirectories = []
+        files_found = 0
         
         # Compile regex pattern if provided
         pattern = None
@@ -364,48 +371,67 @@ def obsidian_list_notes(
             
             return True
         
-        def traverse_directory(dir_path: Path, current_depth: int = 0) -> None:
-            """Recursively traverse directory and collect files."""
+        def traverse_directory(dir_path: Path, current_depth: int = 0) -> bool:
+            """Recursively traverse directory and collect files. Returns False if max_files reached."""
+            nonlocal files_found
+            
             if max_depth > 0 and current_depth >= max_depth:
-                return
+                return True  # Continue processing
+            
+            if len(files) >= max_files:
+                return False  # Stop processing
             
             try:
                 for item in sorted(dir_path.iterdir()):
+                    if len(files) >= max_files:
+                        return False  # Stop processing
+                    
                     if item.is_file() and should_include_file(item):
-                        # Get file info
-                        stat = item.stat()
-                        relative_path = item.relative_to(vault_path)
+                        files_found += 1
                         
-                        file_info = {
-                            'name': item.name,
-                            'path': str(relative_path),
-                            'size': stat.st_size,
-                            'modified': stat.st_mtime,
-                            'is_markdown': is_markdown_file(item)
-                        }
-                        
-                        # Add tag count for markdown files
-                        if is_markdown_file(item):
-                            try:
-                                parsed = parse_note_file(item)
-                                file_info['tag_count'] = len(parsed['tags'])
-                                file_info['has_frontmatter'] = bool(parsed['frontmatter'])
-                            except Exception:
-                                file_info['tag_count'] = 0
-                                file_info['has_frontmatter'] = False
-                        
-                        files.append(file_info)
+                        # Only add to results if under max_files limit
+                        if len(files) < max_files:
+                            # Get file info
+                            stat = item.stat()
+                            relative_path = item.relative_to(vault_path)
+                            
+                            file_info = {
+                                'name': item.name,
+                                'path': str(relative_path),
+                                'size': stat.st_size,
+                                'modified': stat.st_mtime,
+                                'is_markdown': is_markdown_file(item)
+                            }
+                            
+                            # Add tag count for markdown files only if not lazy parsing
+                            if is_markdown_file(item) and not lazy_parsing:
+                                try:
+                                    parsed = parse_note_file(item)
+                                    file_info['tag_count'] = len(parsed['tags'])
+                                    file_info['has_frontmatter'] = bool(parsed['frontmatter'])
+                                except Exception:
+                                    file_info['tag_count'] = 0
+                                    file_info['has_frontmatter'] = False
+                            elif is_markdown_file(item) and lazy_parsing:
+                                # Skip expensive parsing but indicate it's markdown
+                                file_info['tag_count'] = None  # Indicates lazy parsing was used
+                                file_info['has_frontmatter'] = None
+                            
+                            files.append(file_info)
                     
                     elif item.is_dir() and include_subdirectories:
                         relative_path = item.relative_to(vault_path)
                         subdirectories.append(str(relative_path))
                         
                         # Recursively traverse subdirectory
-                        traverse_directory(item, current_depth + 1)
+                        if not traverse_directory(item, current_depth + 1):
+                            return False  # Stop processing
             
             except PermissionError:
                 # Skip directories we can't read
                 pass
+            
+            return True  # Continue processing
         
         # Start traversal
         traverse_directory(target_dir)
@@ -415,7 +441,9 @@ def obsidian_list_notes(
             'files': files,
             'subdirectories': subdirectories,
             'total_files': len(files),
-            'total_directories': len(subdirectories)
+            'total_directories': len(subdirectories),
+            'files_found': files_found,
+            'truncated': files_found > len(files)
         }
         
     except FileNotFoundError:
