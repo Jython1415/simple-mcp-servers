@@ -86,20 +86,9 @@ Example CLAUDE.md file content:
 
 ## Roadmap
 
-### Documentation Access Benchmarking
-**Status**: Moved to dedicated evaluation framework  
-**Repository**: [obsidian-mcp-evaluation](../obsidian-mcp-evaluation/) - Automated benchmarking system for documentation access patterns
+- [ ] Adjust the language of documentation and code to indicate that the `CLAUDE.md` resource is the default option, while the environment variable is an optional method to *override* that resource.
+- [ ] Investigate a way to load a portion of the content from `CLAUDE.md` into the resource description (or other, automatically included, tool content), so that Claude doesn't need to request/load the resource to have that information presented to it.
 
-**Goal**: Ensure Claude Code reads appropriate documentation files for different task types through systematic evaluation and iteration on MCP tool descriptions and vault guidance.
-
-### Completed Items
-✅ **Token Limit Issue**: Fixed obsidian-vault response size exceeding 25k tokens
-- Added max_files=100 and lazy_parsing=True parameters
-- Maintained backward compatibility
-- Added truncation metadata
-
-### Future Enhancements
-- Process temp_lessons/* into memory file - multiple lessons about MCP development
 """
 
 import os
