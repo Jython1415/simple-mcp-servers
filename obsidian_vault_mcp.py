@@ -87,6 +87,8 @@ Example CLAUDE.md file content:
 ## Roadmap
 
 - [ ] Adjust the language of documentation and code to indicate that the `CLAUDE.md` resource is the default option, while the environment variable is an optional method to *override* that resource.
+- [ ] Add optional tool call logging functionality to enable automated testing and evaluation of document access patterns. When enabled via environment variable (e.g., OBSIDIAN_TOOL_LOGGING=true), the server should log all tool invocations including tool name, parameters, accessed file paths, and timestamps to a configurable log file or stderr in a structured format (JSON recommended) for programmatic analysis.
+- [ ] Implement logging configuration options to specify log output destination, format, and filtering to support different testing scenarios without requiring code changes.
 - [ ] Investigate a way to load a portion of the content from `CLAUDE.md` into the resource description (or other, automatically included, tool content), so that Claude doesn't need to request/load the resource to have that information presented to it.
 
 """
