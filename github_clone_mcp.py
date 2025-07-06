@@ -381,8 +381,8 @@ def clone_repo(
 def repo_read(
     repo_url: str = Field(description="GitHub repository URL"),
     file_path: str = Field(description="Path to file within repository"),
-    start_line: Union[int, str] = Field(default=1, description="Starting line number (1-indexed)"),
-    num_lines: Optional[Union[int, str]] = Field(default=None, description="Number of lines to read (None for all)")
+    start_line: str = Field(default="1", description="Starting line number (1-indexed)"),
+    num_lines: Optional[str] = Field(default=None, description="Number of lines to read (None for all)")
 ) -> Dict[str, Any]:
     """Read file contents from a cloned repository (equivalent to Read tool)."""
     
