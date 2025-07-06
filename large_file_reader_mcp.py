@@ -60,6 +60,20 @@ claude mcp add large-file-reader /Users/Joshua/Documents/_programming/simple-mcp
 
 - fastmcp: MCP server framework
 - pydantic: Type validation and field descriptions
+
+## Roadmap
+
+### Current Status
+Server is functional and stable for large file reading operations.
+
+### Future Enhancements
+- Support for additional file encodings beyond UTF-8
+- Memory-efficient streaming for extremely large files (>10GB)
+- Integration with compression formats (gzip, bzip2)
+- Enhanced pattern matching with regex compilation caching
+
+### Known Issues
+None currently identified.
 """
 
 import os
