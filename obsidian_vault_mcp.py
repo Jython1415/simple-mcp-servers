@@ -83,6 +83,23 @@ Example CLAUDE.md file content:
 - Work notes are tagged with #work
 - Meeting notes are in the meetings/ folder
 ```
+
+## Roadmap
+
+### Documentation Access Benchmarking
+**Status**: Moved to dedicated evaluation framework  
+**Repository**: [obsidian-mcp-evaluation](../obsidian-mcp-evaluation/) - Automated benchmarking system for documentation access patterns
+
+**Goal**: Ensure Claude Code reads appropriate documentation files for different task types through systematic evaluation and iteration on MCP tool descriptions and vault guidance.
+
+### Completed Items
+✅ **Token Limit Issue**: Fixed obsidian-vault response size exceeding 25k tokens
+- Added max_files=100 and lazy_parsing=True parameters
+- Maintained backward compatibility
+- Added truncation metadata
+
+### Future Enhancements
+- Process temp_lessons/* into memory file - multiple lessons about MCP development
 """
 
 import os
