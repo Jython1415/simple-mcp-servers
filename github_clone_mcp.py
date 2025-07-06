@@ -97,8 +97,9 @@ info = repo_status("https://github.com/microsoft/vscode")
 - [x] Basic file reading (repo_read)
 - [x] Search capabilities (repo_grep, repo_glob)
 - [x] Automatic cleanup and management
-- [ ] Background cloning for large repos
-- [ ] Performance optimization
+- [ ] API revamp: abstract away the need to "clone" a repository, and simplify treat it as if it were performing local file operations on a remote repository
+- [ ] If a cloned repository is outdated, automatically update the clone
+- [ ] Gracefully handle operations that time out due to long cloning by allowing a "retry" with the clone continuing in the background
 
 ## Dependencies
 
