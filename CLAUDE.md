@@ -102,7 +102,12 @@ simple-mcp-servers/
 - Keep servers focused and single-purpose
 - **Token Management**: Include max\_files/max\_results (or similar) parameters with sensible defaults
 - **Response Metadata**: For larger responses, communicate metadata (e.g. total files found)
-- **Server Roadmaps**: Check individual MCP server file headers for server-specific roadmaps and development plans
+- **Server Roadmaps**: Each MCP server includes a dedicated "Roadmap" section in its header documentation containing:
+  - Development status and completion state
+  - Planned features and enhancements
+  - Known issues and limitations
+  - Implementation priorities
+  - For stable servers with no planned changes, roadmap simply states "No additional changes planned"
 
 ## Testing
 

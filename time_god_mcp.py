@@ -37,6 +37,10 @@ Add to Claude Code with:
 ```bash
 claude mcp add time-god /Users/Joshua/Documents/_programming/simple-mcp-servers/time_god_mcp.py
 ```
+
+## Roadmap
+
+No additional changes planned. The server is complete and stable for its intended purpose.
 """
 
 import sys
