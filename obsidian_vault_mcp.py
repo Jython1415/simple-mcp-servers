@@ -56,18 +56,25 @@ OBSIDIAN_VAULT_PATH="/path/to/vault" ./obsidian_vault_mcp.py
 
 Environment Variables:
 - OBSIDIAN_VAULT_PATH: Path to your Obsidian vault directory (required)
-- OBSIDIAN_USAGE_INSTRUCTIONS: Custom usage instructions for this vault (optional)
+- OBSIDIAN_USAGE_INSTRUCTIONS: Override custom usage instructions (optional - overrides CLAUDE.md)
 
 ## Custom Usage Instructions
 
 The server provides a resource called `usage_instructions` that can contain custom guidance
-for working with your specific Obsidian vault. Instructions are loaded in priority order:
+for working with your specific Obsidian vault. The default method is to create a `CLAUDE.md` 
+file in your vault root directory. Instructions are loaded in priority order:
 
-1. **Environment Variable**: Set `OBSIDIAN_USAGE_INSTRUCTIONS` when configuring the server
-2. **CLAUDE.md File**: Place a `CLAUDE.md` file in your vault root directory
+1. **Environment Variable Override**: Set `OBSIDIAN_USAGE_INSTRUCTIONS` to override the CLAUDE.md file
+2. **CLAUDE.md File (Default)**: Place a `CLAUDE.md` file in your vault root directory
 3. **Default Message**: If neither are available, indicates no custom instructions
 
-Example with custom instructions:
+Example with CLAUDE.md file (recommended):
+```bash
+claude mcp add obsidian-vault /path/to/obsidian_vault_mcp.py \
+  --env OBSIDIAN_VAULT_PATH=/path/to/vault
+```
+
+Example with environment variable override:
 ```bash
 claude mcp add obsidian-vault /path/to/obsidian_vault_mcp.py \
   --env OBSIDIAN_VAULT_PATH=/path/to/vault \
@@ -86,7 +93,7 @@ Example CLAUDE.md file content:
 
 ## Roadmap
 
-- [ ] Adjust the language of documentation and code to indicate that the `CLAUDE.md` resource is the default option, while the environment variable is an optional method to *override* that resource.
+- [x] Adjust the language of documentation and code to indicate that the `CLAUDE.md` resource is the default option, while the environment variable is an optional method to *override* that resource.
 - [ ] Add optional tool call logging functionality to enable automated testing and evaluation of document access patterns. When enabled via environment variable (e.g., OBSIDIAN_TOOL_LOGGING=true), the server should log all tool invocations including tool name, parameters, accessed file paths, and timestamps to a configurable log file or stderr in a structured format (JSON recommended) for programmatic analysis.
 - [ ] Implement logging configuration options to specify log output destination, format, and filtering to support different testing scenarios without requiring code changes.
 - [ ] Investigate a way to load a portion of the content from `CLAUDE.md` into the resource description (or other, automatically included, tool content), so that Claude doesn't need to request/load the resource to have that information presented to it.
@@ -843,9 +850,10 @@ def usage_instructions() -> str:
     """
     Get custom usage instructions for this Obsidian vault.
     
+    Uses CLAUDE.md file in vault root as default, with optional environment variable override.
     Checks for instructions in priority order:
-    1. OBSIDIAN_USAGE_INSTRUCTIONS environment variable
-    2. CLAUDE.md file in vault root
+    1. OBSIDIAN_USAGE_INSTRUCTIONS environment variable (override)
+    2. CLAUDE.md file in vault root (default)
     3. Default message if neither are available
     
     Returns:
