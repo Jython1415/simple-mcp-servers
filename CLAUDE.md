@@ -86,7 +86,6 @@ simple-mcp-servers/
    - Error handling
    - Server execution
 5. **Make Executable**: Run `chmod +x your_server_mcp.py`
-6. **Testing**: Consider adding test files following existing pattern
 
 ### Configuration Management
 - Each server should include its own Claude configuration example
@@ -103,32 +102,61 @@ simple-mcp-servers/
 - Keep servers focused and single-purpose
 - **Token Management**: Include max\_files/max\_results (or similar) parameters with sensible defaults
 - **Response Metadata**: For larger responses, communicate metadata (e.g. total files found)
+- **Server Roadmaps**: Check individual MCP server file headers for server-specific roadmaps and development plans
 
-## Testing and Development Lessons
+## Testing
 
 ### Testing MCP Functions
 - **Problem**: Functions decorated with `@mcp.tool()` cannot be called directly during testing
 - **Solution**: Create wrapper functions that replicate the core logic rather than trying to access decorated functions
 - **Pattern**: Use mock data with `tempfile.mkdtemp()` and environment variables for testing
 
-### Test Script Structure
+### Testing Workflow
+
+**Complete Testing Process:**
+1. **Create Test File**: Write test to working directory with descriptive name
+2. **Run Test**: Use `uv run --script test_filename.py`
+3. **Clean Up**: Always remove test file after completion
+4. **Git Safety**: Ensure test files are never staged or committed
+
+**Example Workflow:**
+```bash
+# 1. Create test file (use Write tool)
+# test_feature_validation.py
+
+# 2. Run test
+uv run --script test_feature_validation.py
+
+# 3. Clean up
+rm test_feature_validation.py
+```
+
+**Test File Template:**
 ```python
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["fastmcp", "pydantic", "python-frontmatter", "pyyaml"]
+# dependencies = [
+#     "fastmcp",
+#     "pydantic",
+#     # Add other dependencies as needed
+# ]
 # ///
+
+def test_functionality():
+    # Test implementation here
+    pass
+
+if __name__ == "__main__":
+    test_functionality()
+    print("Test completed successfully!")
 ```
 
-Call with `uv run --script`, not `python` or `./<file-name`
-
-### Token Limit Management
-- **Response Structure**: Always include metadata about truncation:
-  ```python
-  {
-      # ... normal fields ...
-      'truncated': total_found > returned_count
-  }
-  ```
+### Testing Best Practices
+- **Naming**: Use descriptive test file names (e.g., `test_parameter_validation.py`)
+- **Location**: Keep test files in working directory, not subdirectories
+- **Dependencies**: Match the target MCP server's PEP 723 dependencies exactly
+- **Cleanup**: Always remove test files to prevent git staging
+- **Error Handling**: Include proper exception handling in tests
 
 ### Environment Management in Tests
 - Save/restore original environment variables
