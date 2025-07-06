@@ -380,8 +380,8 @@ def clone_repo(
 def repo_read(
     repo_url: str = Field(description="GitHub repository URL"),
     file_path: str = Field(description="Path to file within repository"),
-    start_line: int = Field(default=1, description="Starting line number (1-indexed)"),
-    num_lines: Optional[int] = Field(default=None, description="Number of lines to read (None for all)")
+    start_line: Union[int, str] = Field(default=1, description="Starting line number (1-indexed)"),
+    num_lines: Optional[Union[int, str]] = Field(default=None, description="Number of lines to read (None for all)")
 ) -> Dict[str, Any]:
     """Read file contents from a cloned repository (equivalent to Read tool)."""
     
@@ -396,6 +396,23 @@ def repo_read(
     }
     
     try:
+        # Type coercion for parameters that might come as strings
+        if isinstance(start_line, str):
+            try:
+                start_line = int(start_line)
+            except ValueError:
+                result["error"] = f"Invalid start_line value: '{start_line}' must be a number"
+                return result
+        
+        if isinstance(num_lines, str):
+            try:
+                num_lines = int(num_lines) if num_lines.strip() else None
+            except ValueError:
+                result["error"] = f"Invalid num_lines value: '{num_lines}' must be a number"
+                return result
+        
+        # Update result with coerced values
+        result["start_line"] = start_line
         # Get repository path
         repo_path = repo_manager.get_repo_path(repo_url)
         if not repo_path:
