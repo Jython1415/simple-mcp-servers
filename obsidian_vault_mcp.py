@@ -57,6 +57,8 @@ OBSIDIAN_VAULT_PATH="/path/to/vault" ./obsidian_vault_mcp.py
 Environment Variables:
 - OBSIDIAN_VAULT_PATH: Path to your Obsidian vault directory (required)
 - OBSIDIAN_USAGE_INSTRUCTIONS: Override custom usage instructions (optional - overrides CLAUDE.md)
+- OBSIDIAN_TOOL_LOGGING: Enable tool call logging for testing/evaluation (true/false, default: false)
+- OBSIDIAN_LOG_FILE: Optional log file path (default: stderr if logging enabled)
 
 ## Custom Usage Instructions
 
@@ -81,6 +83,14 @@ claude mcp add obsidian-vault /path/to/obsidian_vault_mcp.py \
   --env OBSIDIAN_USAGE_INSTRUCTIONS="When searching for Claude instructions, filter by the #claude tag using required_tags=['claude']"
 ```
 
+Example with tool logging enabled:
+```bash
+claude mcp add obsidian-vault /path/to/obsidian_vault_mcp.py \
+  --env OBSIDIAN_VAULT_PATH=/path/to/vault \
+  --env OBSIDIAN_TOOL_LOGGING=true \
+  --env OBSIDIAN_LOG_FILE=/path/to/obsidian_tools.log
+```
+
 Example CLAUDE.md file content:
 ```markdown
 # Claude Usage Instructions for My Vault
@@ -91,11 +101,40 @@ Example CLAUDE.md file content:
 - Meeting notes are in the meetings/ folder
 ```
 
+## Tool Call Logging
+
+Optional logging functionality for automated testing and evaluation of document access patterns. When enabled, all tool invocations are logged with structured JSON format including:
+
+- Timestamp (ISO format)
+- Tool name and parameters
+- Accessed file paths (relative to vault)
+- Execution time in milliseconds
+- Success/failure status
+- Error messages (if applicable)
+
+Enable logging by setting `OBSIDIAN_TOOL_LOGGING=true`. Logs are written to stderr by default, or to a specified file using `OBSIDIAN_LOG_FILE=/path/to/log`.
+
+Example log entry:
+```json
+{
+  "timestamp": "2025-01-01T12:00:00Z",
+  "tool_name": "obsidian_read_note",
+  "parameters": {"note_path": "example.md"},
+  "accessed_files": ["example.md"],
+  "execution_time_ms": 15.42,
+  "success": true,
+  "error_message": null
+}
+```
+
 ## Roadmap
 
 - [x] Adjust the language of documentation and code to indicate that the `CLAUDE.md` resource is the default option, while the environment variable is an optional method to *override* that resource.
-- [ ] Add optional tool call logging functionality to enable automated testing and evaluation of document access patterns. When enabled via environment variable (e.g., OBSIDIAN_TOOL_LOGGING=true), the server should log all tool invocations including tool name, parameters, accessed file paths, and timestamps to a configurable log file or stderr in a structured format (JSON recommended) for programmatic analysis.
-- [ ] Implement logging configuration options to specify log output destination, format, and filtering to support different testing scenarios without requiring code changes.
+- [x] Add optional tool call logging functionality to enable automated testing and evaluation of document access patterns. When enabled via environment variable (e.g., OBSIDIAN_TOOL_LOGGING=true), the server should log all tool invocations including tool name, parameters, accessed file paths, and timestamps to a configurable log file or stderr in a structured format (JSON recommended) for programmatic analysis.
+  - [x] Adapt logging infrastructure from toy server implementation
+  - [x] Apply logging to all 4 production tools (obsidian_read_note, obsidian_list_notes, obsidian_global_search, obsidian_get_vault_info)
+  - [x] Update documentation with logging configuration examples
+  - [x] Mark original roadmap task as completed
 - [ ] Investigate a way to load a portion of the content from `CLAUDE.md` into the resource description (or other, automatically included, tool content), so that Claude doesn't need to request/load the resource to have that information presented to it.
 
 """
@@ -104,9 +143,11 @@ import os
 import sys
 import re
 import json
+import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
-from datetime import datetime
+from typing import Dict, List, Optional, Any, Union, Callable
+from datetime import datetime, timezone
+from functools import wraps
 import frontmatter
 import yaml
 
@@ -118,6 +159,8 @@ mcp = FastMCP("obsidian-vault")
 
 # Global configuration
 VAULT_PATH = None
+LOGGING_ENABLED = False
+LOG_FILE = None
 
 def get_vault_path() -> Path:
     """Get the vault path from environment variable."""
@@ -132,6 +175,161 @@ def get_vault_path() -> Path:
         if not VAULT_PATH.is_dir():
             raise ValueError(f"Vault path is not a directory: {VAULT_PATH}")
     return VAULT_PATH
+
+def init_logging():
+    """Initialize logging configuration from environment variables."""
+    global LOGGING_ENABLED, LOG_FILE
+    
+    # Check if logging is enabled
+    LOGGING_ENABLED = os.environ.get("OBSIDIAN_TOOL_LOGGING", "").lower() in ("true", "1", "yes")
+    
+    # Get log file path if specified
+    log_file_path = os.environ.get("OBSIDIAN_LOG_FILE")
+    if log_file_path:
+        try:
+            LOG_FILE = Path(log_file_path).expanduser().resolve()
+            # Ensure parent directory exists
+            LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            # Test write permissions
+            with open(LOG_FILE, 'a') as f:
+                pass
+        except Exception as e:
+            print(f"Warning: Could not initialize log file {log_file_path}: {e}", file=sys.stderr)
+            LOG_FILE = None
+
+def log_tool_call(tool_name: str, parameters: Dict[str, Any], accessed_files: List[str], 
+                  execution_time_ms: float, success: bool, error_message: Optional[str] = None):
+    """Log a tool call with structured JSON format."""
+    if not LOGGING_ENABLED:
+        return
+    
+    try:
+        # Create log entry
+        log_entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "tool_name": tool_name,
+            "parameters": parameters,
+            "accessed_files": accessed_files,
+            "execution_time_ms": round(execution_time_ms, 2),
+            "success": success,
+            "error_message": error_message
+        }
+        
+        # Convert to JSON
+        log_line = json.dumps(log_entry)
+        
+        # Write to log destination
+        if LOG_FILE:
+            try:
+                with open(LOG_FILE, 'a') as f:
+                    f.write(log_line + '\n')
+            except Exception as e:
+                # Fallback to stderr if file logging fails
+                print(f"Log write failed: {e}", file=sys.stderr)
+                print(log_line, file=sys.stderr)
+        else:
+            # Log to stderr by default
+            print(log_line, file=sys.stderr)
+            
+    except Exception as e:
+        # Don't let logging failures break the tool
+        print(f"Logging error: {e}", file=sys.stderr)
+
+class FileAccessTracker:
+    """Context manager to track file access during tool execution."""
+    
+    def __init__(self):
+        self.accessed_files = []
+        self.original_open = None
+    
+    def __enter__(self):
+        # Track file access by monkey-patching open
+        self.original_open = __builtins__['open']
+        
+        def tracked_open(file, *args, **kwargs):
+            # Only track files within the vault
+            try:
+                file_path = Path(file).resolve()
+                vault_path = get_vault_path()
+                if file_path.is_relative_to(vault_path):
+                    relative_path = str(file_path.relative_to(vault_path))
+                    if relative_path not in self.accessed_files:
+                        self.accessed_files.append(relative_path)
+            except Exception:
+                # If we can't determine the path relationship, skip tracking
+                pass
+            
+            return self.original_open(file, *args, **kwargs)
+        
+        __builtins__['open'] = tracked_open
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # Restore original open
+        __builtins__['open'] = self.original_open
+
+def log_tool_call_decorator(func: Callable) -> Callable:
+    """Decorator to log tool calls with execution time and file access tracking."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not LOGGING_ENABLED:
+            return func(*args, **kwargs)
+        
+        # Record start time
+        start_time = time.time()
+        
+        # Track file access
+        with FileAccessTracker() as tracker:
+            try:
+                # Execute the tool
+                result = func(*args, **kwargs)
+                
+                # Calculate execution time
+                execution_time_ms = (time.time() - start_time) * 1000
+                
+                # Determine success based on result
+                success = True
+                error_message = None
+                if isinstance(result, dict):
+                    # Check for error indicators in the result
+                    if 'error' in result and result.get('error'):
+                        success = False
+                        error_message = str(result['error'])
+                    elif 'success' in result:
+                        success = result['success']
+                        if not success and 'error' in result:
+                            error_message = result['error']
+                
+                # Log the call
+                log_tool_call(
+                    tool_name=func.__name__,
+                    parameters=dict(zip(func.__code__.co_varnames, args)) if args else kwargs,
+                    accessed_files=tracker.accessed_files,
+                    execution_time_ms=execution_time_ms,
+                    success=success,
+                    error_message=error_message
+                )
+                
+                return result
+                
+            except Exception as e:
+                # Calculate execution time for failed calls
+                execution_time_ms = (time.time() - start_time) * 1000
+                
+                # Log the failed call
+                log_tool_call(
+                    tool_name=func.__name__,
+                    parameters=dict(zip(func.__code__.co_varnames, args)) if args else kwargs,
+                    accessed_files=tracker.accessed_files,
+                    execution_time_ms=execution_time_ms,
+                    success=False,
+                    error_message=str(e)
+                )
+                
+                # Re-raise the exception
+                raise
+    
+    return wrapper
 
 def is_markdown_file(path: Path) -> bool:
     """Check if a file is a markdown file."""
@@ -241,6 +439,7 @@ def resolve_note_path(note_path: str) -> Path:
     raise FileNotFoundError(f"Note not found: {note_path}")
 
 @mcp.tool()
+@log_tool_call_decorator
 def obsidian_read_note(
     note_path: str = Field(description="Path to the note file relative to vault root (e.g., 'folder/note.md' or 'note')")
 ) -> Dict[str, Any]:
@@ -303,6 +502,7 @@ def obsidian_read_note(
         raise ValueError(f"Error reading note '{note_path}': {str(e)}")
 
 @mcp.tool()
+@log_tool_call_decorator
 def obsidian_list_notes(
     directory: str = Field(default="", description="Directory path within vault to list (empty for root)"),
     include_subdirectories: bool = Field(default=True, description="Include subdirectories in results"),
@@ -467,6 +667,7 @@ def obsidian_list_notes(
         raise ValueError(f"Error listing directory '{directory}': {str(e)}")
 
 @mcp.tool()
+@log_tool_call_decorator
 def obsidian_global_search(
     query: str = Field(description="Search query or regex pattern"),
     use_regex: bool = Field(default=False, description="Treat query as regex pattern"),
@@ -761,6 +962,7 @@ def obsidian_global_search(
         raise ValueError(f"Error performing search: {str(e)}")
 
 @mcp.tool()
+@log_tool_call_decorator
 def obsidian_get_vault_info() -> Dict[str, Any]:
     """
     Get information and statistics about the Obsidian vault.
@@ -885,10 +1087,18 @@ def usage_instructions() -> str:
         return f"Error retrieving usage instructions: {str(e)}"
 
 if __name__ == "__main__":
+    # Initialize logging first
+    init_logging()
+    
     # Validate environment on startup
     try:
         get_vault_path()
         print(f"Obsidian Vault MCP Server starting with vault: {get_vault_path()}", file=sys.stderr)
+        if LOGGING_ENABLED:
+            if LOG_FILE:
+                print(f"Tool logging enabled to file: {LOG_FILE}", file=sys.stderr)
+            else:
+                print("Tool logging enabled to stderr", file=sys.stderr)
     except ValueError as e:
         print(f"Configuration error: {e}", file=sys.stderr)
         sys.exit(1)
