@@ -100,6 +100,7 @@ info = repo_status("https://github.com/microsoft/vscode")
 - [ ] API revamp: abstract away the need to "clone" a repository, and simplify treat it as if it were performing local file operations on a remote repository
 - [ ] If a cloned repository is outdated, automatically update the clone
 - [ ] Gracefully handle operations that time out due to long cloning by allowing a "retry" with the clone continuing in the background
+- [ ] Add a configuration option for the amount of storage dedicated to the server
 
 ## Dependencies
 
