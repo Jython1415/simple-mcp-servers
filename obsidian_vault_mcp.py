@@ -136,6 +136,12 @@ Example log entry:
   - [x] Update documentation with logging configuration examples
   - [x] Mark original roadmap task as completed
 - [ ] Investigate a way to load a portion of the content from `CLAUDE.md` into the resource description (or other, automatically included, tool content), so that Claude doesn't need to request/load the resource to have that information presented to it.
+- [ ] Not sure if "error" is the output we want when something is not found: maybe it is though
+⏺ obsidian-vault - obsidian_read_note (MCP)(note_path: "inbox")
+  ⎿  Error: Error calling tool 'obsidian_read_note': Note not found: inbox
+
+⏺ obsidian-vault - obsidian_list_notes (MCP)(directory: "inbox")
+  ⎿  Error: Error calling tool 'obsidian_list_notes': Directory not found: inbox
 
 """
 
