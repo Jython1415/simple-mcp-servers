@@ -62,13 +62,31 @@ Environment Variables:
 
 ## Custom Usage Instructions
 
-The server provides a resource called `usage_instructions` that can contain custom guidance
-for working with your specific Obsidian vault. The default method is to create a `CLAUDE.md` 
-file in your vault root directory. Instructions are loaded in priority order:
+The server provides a tool called `obsidian_get_usage_instructions` that contains custom guidance
+for working with your specific Obsidian vault. The tool description shows key instructions immediately,
+while calling the tool returns complete instructions. Instructions are loaded in priority order:
 
 1. **Environment Variable Override**: Set `OBSIDIAN_USAGE_INSTRUCTIONS` to override the CLAUDE.md file
 2. **CLAUDE.md File (Default)**: Place a `CLAUDE.md` file in your vault root directory
 3. **Default Message**: If neither are available, indicates no custom instructions
+
+### CLAUDE.md Split Point
+
+To optimize the tool description, you can use `<tool-description-end />` in your CLAUDE.md file to mark where the tool description ends. Content before this marker appears in the tool description (immediately visible), while the complete file content is returned when the tool is called.
+
+Example CLAUDE.md structure:
+```markdown
+# Quick Reference
+- Use required_tags=['claude'] for Claude-specific instructions
+- Personal notes tagged with #personal
+
+<tool-description-end />
+
+# Detailed Instructions
+- Complete vault organization details
+- Advanced search patterns
+- Workflow documentation
+```
 
 Example with CLAUDE.md file (recommended):
 ```bash
@@ -135,8 +153,17 @@ Example log entry:
   - [x] Apply logging to all 4 production tools (obsidian_read_note, obsidian_list_notes, obsidian_global_search, obsidian_get_vault_info)
   - [x] Update documentation with logging configuration examples
   - [x] Mark original roadmap task as completed
-- [ ] Investigate a way to load a portion of the content from `CLAUDE.md` into the resource description (or other, automatically included, tool content), so that Claude doesn't need to request/load the resource to have that information presented to it.
-- [ ] Not sure if "error" is the output we want when something is not found: maybe it is though
+- [x] Implement CLAUDE.md content embedding via new tool approach
+  - [x] Create new tool `obsidian_get_usage_instructions` that replaces the current resource
+  - [x] Split CLAUDE.md content: first part as tool description, remainder as tool response
+  - [x] Use FastMCP's `description` parameter to embed the "always loaded" portion
+  - [x] Tool returns full CLAUDE.md content when called explicitly
+  - [x] Remove existing `@mcp.resource("obsidian://usage-instructions")` implementation
+  - [x] Update documentation to reflect new tool-based approach
+- [ ] Evaluate error handling consistency for "not found" scenarios
+  - [ ] Review current error messages and response formats
+  - [ ] Consider standardization but preserve original behavior if working well
+  - [ ] Original error examples for reference:
 ⏺ obsidian-vault - obsidian_read_note (MCP)(note_path: "inbox")
   ⎿  Error: Error calling tool 'obsidian_read_note': Note not found: inbox
 
@@ -1053,25 +1080,30 @@ def obsidian_get_vault_info() -> Dict[str, Any]:
     except Exception as e:
         raise ValueError(f"Error getting vault info: {str(e)}")
 
-@mcp.resource("obsidian://usage-instructions")
-def usage_instructions() -> str:
+def get_claude_instructions() -> tuple[str, str]:
     """
-    Get custom usage instructions for this Obsidian vault.
-    
-    Uses CLAUDE.md file in vault root as default, with optional environment variable override.
-    Checks for instructions in priority order:
-    1. OBSIDIAN_USAGE_INSTRUCTIONS environment variable (override)
-    2. CLAUDE.md file in vault root (default)
-    3. Default message if neither are available
+    Get Claude instructions from CLAUDE.md file, split into description and full content.
     
     Returns:
-        String containing usage instructions or default message
+        Tuple of (description_part, full_content)
+        - description_part: Content before <tool-description-end /> tag (for tool description)
+        - full_content: Complete CLAUDE.md content (for tool response)
     """
     try:
-        # Check environment variable first
+        # Check environment variable first for override
         env_instructions = os.environ.get("OBSIDIAN_USAGE_INSTRUCTIONS")
         if env_instructions and env_instructions.strip():
-            return env_instructions.strip()
+            full_content = env_instructions.strip()
+            # For environment override, use first paragraph as description
+            lines = full_content.split('\n')
+            description_lines = []
+            for line in lines:
+                if line.strip():
+                    description_lines.append(line)
+                    if len(description_lines) >= 3:  # First 3 non-empty lines
+                        break
+            description_part = '\n'.join(description_lines)
+            return description_part, full_content
         
         # Check for CLAUDE.md file in vault root
         try:
@@ -1079,18 +1111,93 @@ def usage_instructions() -> str:
             claude_md_path = vault_path / "CLAUDE.md"
             if claude_md_path.exists() and claude_md_path.is_file():
                 with open(claude_md_path, 'r', encoding='utf-8') as f:
-                    claude_content = f.read().strip()
-                if claude_content:
-                    return claude_content
+                    full_content = f.read().strip()
+                
+                if full_content:
+                    # Look for split point marker
+                    split_marker = "<tool-description-end />"
+                    if split_marker in full_content:
+                        description_part = full_content.split(split_marker)[0].strip()
+                    else:
+                        # Fallback: use first 500 characters as description
+                        if len(full_content) > 500:
+                            description_part = full_content[:500] + "..."
+                        else:
+                            description_part = full_content
+                    
+                    return description_part, full_content
         except Exception:
             # If we can't read CLAUDE.md, continue to default
             pass
         
         # Default fallback
-        return "No custom usage instructions specified for this Obsidian vault."
+        default_content = "No custom usage instructions specified for this Obsidian vault."
+        return default_content, default_content
         
     except Exception as e:
-        return f"Error retrieving usage instructions: {str(e)}"
+        error_msg = f"Error retrieving usage instructions: {str(e)}"
+        return error_msg, error_msg
+
+# Get instructions for tool description
+description_part, _ = get_claude_instructions()
+
+@mcp.tool(
+    description=f"""Get custom usage instructions for this Obsidian vault.
+
+{description_part}
+
+Call this tool to get the complete usage instructions for working with this specific Obsidian vault."""
+)
+@log_tool_call_decorator
+def obsidian_get_usage_instructions() -> Dict[str, Any]:
+    """
+    Get complete custom usage instructions for this Obsidian vault.
+    
+    Returns the full content of the CLAUDE.md file from the vault root, or environment 
+    variable override if specified. The tool description shows a preview of the most 
+    important instructions.
+    
+    Instructions are loaded in priority order:
+    1. OBSIDIAN_USAGE_INSTRUCTIONS environment variable (override)
+    2. CLAUDE.md file in vault root (default, split at <tool-description-end />)
+    3. Default message if neither are available
+    
+    Returns:
+        Dictionary containing:
+        - instructions: Full usage instructions content
+        - source: Source of the instructions (env_var, claude_md, or default)
+        - split_point_found: Whether <tool-description-end /> marker was found
+    """
+    try:
+        description_part, full_content = get_claude_instructions()
+        
+        # Determine source
+        env_instructions = os.environ.get("OBSIDIAN_USAGE_INSTRUCTIONS")
+        if env_instructions and env_instructions.strip():
+            source = "env_var"
+            split_point_found = False
+        else:
+            vault_path = get_vault_path()
+            claude_md_path = vault_path / "CLAUDE.md"
+            if claude_md_path.exists() and claude_md_path.is_file():
+                source = "claude_md"
+                split_point_found = "<tool-description-end />" in full_content
+            else:
+                source = "default"
+                split_point_found = False
+        
+        return {
+            "instructions": full_content,
+            "source": source,
+            "split_point_found": split_point_found
+        }
+        
+    except Exception as e:
+        return {
+            "instructions": f"Error retrieving usage instructions: {str(e)}",
+            "source": "error",
+            "split_point_found": False
+        }
 
 if __name__ == "__main__":
     # Initialize logging first
