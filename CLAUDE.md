@@ -168,6 +168,133 @@ if __name__ == "__main__":
 - Reset global state between tests (`module.GLOBAL_VAR = None`)
 - Use try/finally blocks for cleanup
 
+### MCP Inspector CLI Integration
+Programmatic testing of MCP servers compatible with Claude Code:
+
+```bash
+# Check tool availability
+npx @modelcontextprotocol/inspector --cli server.py --method tools/list
+
+# Test specific tool calls
+npx @modelcontextprotocol/inspector --cli server.py --method tools/call --tool-name mytool --args '{"param": "value"}'
+```
+
+### Subprocess Testing Patterns
+For environment isolation and controlled testing:
+
+```python
+# Test with specific environment variables
+env = os.environ.copy()
+env.update({'TOOL_LOGGING': 'true', 'LOG_FILE': '/tmp/test.log'})
+
+result = subprocess.run([sys.executable, test_script.name], 
+                       capture_output=True, text=True, env=env)
+```
+
+**Key Benefits**:
+- Complete environment isolation
+- Test different configurations without affecting current session
+- Validate startup behavior and error handling
+- Compatible with automated testing workflows
+
+## Advanced Testing Patterns
+
+### Toy Server Development Pattern
+For testing complex features before production implementation:
+
+1. **Create Minimal Viable Server**: Single-file server with one test tool
+2. **Mirror Production Environment**: Same dependencies, environment variables, and patterns
+3. **Rapid Iteration**: Test logging, decorators, and infrastructure safely
+4. **Pattern Validation**: Ensure approach works before production integration
+
+**Example Structure**:
+```python
+# toy_server_mcp.py - Minimal server for testing patterns
+@mcp.tool()
+@test_decorator
+def simple_test_tool(param: str) -> Dict[str, Any]:
+    # Test implementation
+```
+
+### Multi-Layer Testing Strategy
+1. **Unit Tests**: Direct function testing without MCP complications
+2. **Decorator Tests**: Create test functions that mimic tool behavior
+3. **Subprocess Tests**: Environment isolation with controlled variables
+4. **MCP Inspector**: CLI integration for programmatic testing
+
+**MCP Inspector Integration**:
+```bash
+# Check tool availability
+npx @modelcontextprotocol/inspector --cli server.py --method tools/list
+
+# Test tool calls programmatically
+npx @modelcontextprotocol/inspector --cli server.py --method tools/call --tool-name mytool
+```
+
+### Environment Isolation Patterns
+- **Temporary Environments**: Use `tempfile.mkdtemp()` for test vaults
+- **Environment Variables**: Copy and modify `os.environ` for tests
+- **Automatic Cleanup**: Always clean up test artifacts in try/finally blocks
+- **Claude Code Compatibility**: Self-contained scripts with PEP 723 headers
+
+**Reference**: For comprehensive logging implementation examples, see Obsidian vault notes tagged with `#claude`.
+
+## Logging Infrastructure
+
+### Decorator-Based Logging Pattern
+Universal logging decorator for MCP tools:
+
+```python
+@log_tool_call_decorator
+def log_tool_call_decorator(func: Callable) -> Callable:
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # Track execution time and file access
+        # Log structured JSON with graceful error handling
+        return func(*args, **kwargs)
+    return wrapper
+```
+
+### FileAccessTracker Context Manager
+Monitor file access during tool execution via monkey-patching:
+
+```python
+class FileAccessTracker:
+    def __enter__(self):
+        self.original_open = __builtins__['open']
+        __builtins__['open'] = self.tracked_open
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        __builtins__['open'] = self.original_open
+```
+
+### Structured JSON Logging
+Standard log format with comprehensive metadata:
+
+```json
+{
+  "timestamp": "2025-01-01T12:00:00Z",
+  "tool_name": "function_name",
+  "parameters": {"param": "value"},
+  "accessed_files": ["file1.md", "file2.md"],
+  "execution_time_ms": 15.42,
+  "success": true,
+  "error_message": null
+}
+```
+
+### Graceful Error Handling
+Multiple fallback layers for logging reliability:
+1. **File Logging**: Write to specified log file
+2. **stderr Fallback**: If file logging fails
+3. **Silent Failure**: Never break tool functionality
+
+### Configuration Pattern
+Environment variable-based configuration:
+- `TOOL_LOGGING=true` - Enable logging
+- `LOG_FILE=/path/to/log` - Optional file destination (default: stderr)
+
 ## Collaboration Notes
 
 - **User Preferences**: Uses macOS, Obsidian-flavor markdown

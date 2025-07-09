@@ -49,7 +49,6 @@ claude mcp add github-clone /Users/Joshua/Documents/_programming/simple-mcp-serv
 
 ## Tools Provided
 
-- `clone_repo`: Clone or verify a repository is available locally
 - `repo_read`: Read file contents (equivalent to Read tool)
 - `repo_grep`: Search for patterns in repository files (equivalent to Grep tool)
 - `repo_glob`: Find files matching patterns (equivalent to Glob tool)
@@ -58,28 +57,27 @@ claude mcp add github-clone /Users/Joshua/Documents/_programming/simple-mcp-serv
 ## Usage Examples
 
 ```python
-# Clone a repository
-status = clone_repo("https://github.com/microsoft/vscode")
-
-# Read a file
+# Read a file (automatically clones if needed)
 content = repo_read("https://github.com/microsoft/vscode", "package.json")
 
-# Search for patterns
+# Search for patterns (automatically clones if needed)
 matches = repo_grep("https://github.com/microsoft/vscode", "electron", include="*.json")
 
-# Find files
+# Find files (automatically clones if needed)
 files = repo_glob("https://github.com/microsoft/vscode", "*.md")
 
-# Check status
+# Check status and metadata
 info = repo_status("https://github.com/microsoft/vscode")
 ```
 
 ## Features
 
-- **Automatic Cloning**: Repositories are cloned on first access
+- **Seamless Access**: Repositories are automatically cloned on first access to any file operation
+- **Smart Updates**: Automatically updates outdated repositories using `git pull` or full re-clone
+- **Storage Management**: Environment-based storage limits with automatic cleanup of oldest repositories
 - **Shallow Clones**: Uses `--depth=1` for faster cloning
 - **Smart Storage**: Stores repositories in `~/Library/Application Support/ClaudeMCP/github-repos/`
-- **Automatic Cleanup**: Removes repositories after 48 hours of inactivity
+- **Automatic Cleanup**: Removes repositories after 48 hours of inactivity or when storage limit reached
 - **Async Status**: Large repositories show "still cloning" status
 - **Error Recovery**: Handles network failures and invalid repositories
 
@@ -92,15 +90,27 @@ info = repo_status("https://github.com/microsoft/vscode")
 
 ## Implementation Roadmap
 
+### Completed Features
 - [x] Research and design phase
 - [x] Core cloning infrastructure
 - [x] Basic file reading (repo_read)
 - [x] Search capabilities (repo_grep, repo_glob)
 - [x] Automatic cleanup and management
-- [ ] API revamp: abstract away the need to "clone" a repository, and simplify treat it as if it were performing local file operations on a remote repository
-- [ ] If a cloned repository is outdated, automatically update the clone
-- [ ] Gracefully handle operations that time out due to long cloning by allowing a "retry" with the clone continuing in the background
-- [ ] Add a configuration option for the amount of storage dedicated to the server
+- [x] API revamp: abstract away the need to "clone" a repository, and simplify treat it as if it were performing local file operations on a remote repository
+- [x] If a cloned repository is outdated, automatically update the clone
+- [x] Add a configuration option for the amount of storage dedicated to the server
+
+### Phase 2: Timeout Handling (Future Enhancement)
+- [ ] **Add clone progress tracking and status reporting**: Main priority for handling when clone operations take longer than MCP timeout period
+- [ ] **Prevent duplicate work**: Ensure 2 simultaneous clone operations don't repeat work  
+- [ ] **Return partial results**: Show "X% done in Y seconds" when possible during long operations
+- [ ] **Flexible implementation**: Focus on progress tracking over specific timeout mechanisms
+
+### Technical Notes
+- **Environment Configuration**: `GITHUB_CLONE_MAX_STORAGE_GB` controls storage limits
+- **Smart Updates**: Attempts `git pull` first, falls back to re-clone if needed
+- **Automatic Cleanup**: Removes oldest (last accessed) repositories when storage limit reached
+- **Seamless Experience**: All tools automatically clone repositories without explicit `clone_repo` calls
 
 ## Dependencies
 
@@ -190,7 +200,8 @@ class RepositoryManager:
         metadata_path = self.get_metadata_path(repo_path)
         metadata = {
             "last_access": time.time(),
-            "created": time.time()
+            "created": time.time(),
+            "last_updated": time.time()
         }
         
         if metadata_path.exists():
@@ -198,6 +209,7 @@ class RepositoryManager:
                 with open(metadata_path, 'r') as f:
                     existing = json.load(f)
                     metadata["created"] = existing.get("created", time.time())
+                    metadata["last_updated"] = existing.get("last_updated", time.time())
             except Exception:
                 pass
         
@@ -206,6 +218,217 @@ class RepositoryManager:
                 json.dump(metadata, f)
         except Exception:
             pass
+    
+    def update_last_updated(self, repo_path: Path):
+        """Update the last updated time for a repository."""
+        metadata_path = self.get_metadata_path(repo_path)
+        metadata = {
+            "last_access": time.time(),
+            "created": time.time(),
+            "last_updated": time.time()
+        }
+        
+        if metadata_path.exists():
+            try:
+                with open(metadata_path, 'r') as f:
+                    existing = json.load(f)
+                    metadata["created"] = existing.get("created", time.time())
+                    metadata["last_access"] = existing.get("last_access", time.time())
+            except Exception:
+                pass
+        
+        try:
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f)
+        except Exception:
+            pass
+    
+    def is_repo_outdated(self, repo_path: Path, max_age_hours: int = 24) -> bool:
+        """Check if a repository is outdated based on last update time."""
+        metadata_path = self.get_metadata_path(repo_path)
+        if not metadata_path.exists():
+            return True
+        
+        try:
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            
+            last_updated = metadata.get("last_updated", 0)
+            current_time = time.time()
+            max_age_seconds = max_age_hours * 3600
+            
+            return current_time - last_updated > max_age_seconds
+        except Exception:
+            return True
+    
+    def update_repository(self, repo_url: str, repo_path: Path) -> Dict[str, Any]:
+        """Update an existing repository, trying git pull first, then fallback to re-clone."""
+        result = {
+            "success": False,
+            "error": None,
+            "status": "failed",
+            "method": None
+        }
+        
+        try:
+            # Try git pull first
+            repo = Repo(str(repo_path))
+            origin = repo.remotes.origin
+            origin.pull()
+            
+            # Update metadata
+            self.update_last_updated(repo_path)
+            
+            result["success"] = True
+            result["status"] = "updated"
+            result["method"] = "git_pull"
+            
+        except Exception as e:
+            # Git pull failed, try full re-clone
+            try:
+                # Remove existing repository
+                import shutil
+                shutil.rmtree(str(repo_path), ignore_errors=True)
+                
+                # Re-clone
+                clone_result = self.clone_repository(repo_url, repo_path)
+                
+                result["success"] = clone_result["success"]
+                result["error"] = clone_result["error"]
+                result["status"] = clone_result["status"]
+                result["method"] = "re_clone"
+                
+            except Exception as e2:
+                result["error"] = f"Both git pull and re-clone failed: {str(e)}, {str(e2)}"
+                result["status"] = "failed"
+                result["method"] = "both_failed"
+        
+        return result
+    
+    def get_storage_usage_gb(self) -> float:
+        """Calculate current storage usage in GB."""
+        total_size = 0
+        for repo_dir in self.base_path.iterdir():
+            if repo_dir.is_dir():
+                for file_path in repo_dir.rglob("*"):
+                    if file_path.is_file():
+                        try:
+                            total_size += file_path.stat().st_size
+                        except (OSError, FileNotFoundError):
+                            continue
+        return total_size / (1024 ** 3)  # Convert to GB
+    
+    def get_storage_limit_gb(self) -> Optional[float]:
+        """Get storage limit from environment variable."""
+        limit_str = os.environ.get("GITHUB_CLONE_MAX_STORAGE_GB")
+        if limit_str:
+            try:
+                return float(limit_str)
+            except ValueError:
+                return None
+        return None
+    
+    def get_repo_sizes(self) -> List[Dict[str, Any]]:
+        """Get list of repositories with their sizes and metadata."""
+        repos = []
+        for repo_dir in self.base_path.iterdir():
+            if not repo_dir.is_dir():
+                continue
+            
+            repo_size = 0
+            for file_path in repo_dir.rglob("*"):
+                if file_path.is_file():
+                    try:
+                        repo_size += file_path.stat().st_size
+                    except (OSError, FileNotFoundError):
+                        continue
+            
+            # Get metadata
+            metadata_path = self.get_metadata_path(repo_dir)
+            last_access = 0
+            if metadata_path.exists():
+                try:
+                    with open(metadata_path, 'r') as f:
+                        metadata = json.load(f)
+                        last_access = metadata.get("last_access", 0)
+                except Exception:
+                    pass
+            
+            repos.append({
+                "path": repo_dir,
+                "name": repo_dir.name,
+                "size_bytes": repo_size,
+                "size_gb": repo_size / (1024 ** 3),
+                "last_access": last_access
+            })
+        
+        return repos
+    
+    def cleanup_for_space(self, required_space_gb: float) -> bool:
+        """Remove oldest repositories to free up space."""
+        limit_gb = self.get_storage_limit_gb()
+        if not limit_gb:
+            return True  # No storage limit set
+        
+        current_usage = self.get_storage_usage_gb()
+        if current_usage + required_space_gb <= limit_gb:
+            return True  # Enough space available
+        
+        # Get repositories sorted by last access time (oldest first)
+        repos = self.get_repo_sizes()
+        repos.sort(key=lambda x: x["last_access"])
+        
+        space_to_free = (current_usage + required_space_gb) - limit_gb
+        space_freed = 0
+        
+        for repo in repos:
+            if space_freed >= space_to_free:
+                break
+            
+            try:
+                import shutil
+                shutil.rmtree(str(repo["path"]), ignore_errors=True)
+                space_freed += repo["size_gb"]
+            except Exception:
+                continue
+        
+        return space_freed >= space_to_free
+    
+    def check_storage_before_clone(self, estimated_size_gb: float = 0.1) -> Dict[str, Any]:
+        """Check if there's enough storage space before cloning."""
+        result = {
+            "has_space": True,
+            "current_usage_gb": 0,
+            "storage_limit_gb": None,
+            "estimated_size_gb": estimated_size_gb,
+            "cleanup_performed": False,
+            "error": None
+        }
+        
+        limit_gb = self.get_storage_limit_gb()
+        if not limit_gb:
+            result["storage_limit_gb"] = None
+            return result  # No storage limit set
+        
+        current_usage = self.get_storage_usage_gb()
+        result["current_usage_gb"] = current_usage
+        result["storage_limit_gb"] = limit_gb
+        
+        if current_usage + estimated_size_gb <= limit_gb:
+            result["has_space"] = True
+            return result
+        
+        # Try to free up space
+        cleanup_success = self.cleanup_for_space(estimated_size_gb)
+        result["cleanup_performed"] = True
+        
+        if cleanup_success:
+            result["has_space"] = True
+        else:
+            result["has_space"] = False
+            result["error"] = f"Insufficient storage space. Need {estimated_size_gb:.2f}GB, limit is {limit_gb:.2f}GB"
+        
+        return result
     
     def is_repo_cloned(self, repo_path: Path) -> bool:
         """Check if a repository is already cloned and valid."""
@@ -253,7 +476,7 @@ class RepositoryManager:
             )
             
             # Update metadata
-            self.update_last_access(repo_path)
+            self.update_last_updated(repo_path)
             
             result["success"] = True
             result["status"] = "completed"
@@ -288,6 +511,86 @@ class RepositoryManager:
         with self.clone_lock:
             return str(repo_path) in self.cloning_repos
     
+    def _ensure_repo_available(self, repo_url: str, force_update: bool = False) -> Dict[str, Any]:
+        """Ensure repository is available locally, cloning if necessary."""
+        result = {
+            "success": False,
+            "status": "unknown",
+            "error": None,
+            "action": None
+        }
+        
+        try:
+            # Parse repository URL
+            parsed = self.parse_repo_url(repo_url)
+            if not parsed:
+                result["error"] = "Invalid repository URL. Use format 'owner/repo' or 'https://github.com/owner/repo'"
+                return result
+            
+            # Get local path
+            repo_path = self.get_repo_path(repo_url)
+            if not repo_path:
+                result["error"] = "Failed to determine local path for repository"
+                return result
+            
+            # Check if repository is already cloned and valid
+            if self.is_repo_cloned(repo_path):
+                # Check if repository is outdated (unless force_update is True)
+                if not force_update and not self.is_repo_outdated(repo_path):
+                    self.update_last_access(repo_path)
+                    result["success"] = True
+                    result["status"] = "available"
+                    result["action"] = "accessed"
+                    return result
+                elif not force_update:
+                    # Repository is outdated, trigger update
+                    force_update = True
+                    result["action"] = "auto_updating"
+            
+            # Check if currently cloning
+            if self.is_cloning(repo_path):
+                result["error"] = "Repository is still cloning. Please try again in a moment."
+                result["status"] = "cloning"
+                return result
+            
+            # Clone or update repository
+            if force_update and self.is_repo_cloned(repo_path):
+                # Repository exists and needs updating
+                update_result = self.update_repository(repo_url, repo_path)
+                
+                if update_result["success"]:
+                    result["success"] = True
+                    result["status"] = "available"
+                    result["action"] = f"updated_via_{update_result['method']}"
+                else:
+                    result["error"] = update_result["error"]
+                    result["status"] = "failed"
+            else:
+                # Repository doesn't exist, clone it
+                result["action"] = "cloning"
+                
+                # Check storage before cloning
+                storage_check = self.check_storage_before_clone()
+                if not storage_check["has_space"]:
+                    result["error"] = storage_check["error"]
+                    result["status"] = "failed"
+                    return result
+                
+                clone_result = self.clone_repository(repo_url, repo_path)
+                
+                if clone_result["success"]:
+                    result["success"] = True
+                    result["status"] = "available"
+                else:
+                    result["error"] = clone_result["error"]
+                    result["status"] = "failed"
+                
+        except Exception as e:
+            result["error"] = f"Unexpected error: {str(e)}"
+            result["status"] = "error"
+        
+        return result
+    
     def cleanup_old_repositories(self, max_age_hours: int = 48):
         """Remove repositories that haven't been accessed recently."""
         current_time = time.time()
@@ -318,74 +621,16 @@ class RepositoryManager:
 repo_manager = RepositoryManager()
 
 
-@mcp.tool()
-def clone_repo(
-    repo_url: str = Field(description="GitHub repository URL (e.g., 'https://github.com/owner/repo' or 'owner/repo')")
-) -> Dict[str, Any]:
-    """Clone or verify a repository is available locally."""
-    
-    result = {
-        "repo_url": repo_url,
-        "status": "unknown",
-        "local_path": None,
-        "error": None
-    }
-    
-    try:
-        # Parse repository URL
-        parsed = repo_manager.parse_repo_url(repo_url)
-        if not parsed:
-            result["error"] = "Invalid repository URL. Use format 'owner/repo' or 'https://github.com/owner/repo'"
-            result["status"] = "error"
-            return result
-        
-        # Get local path
-        repo_path = repo_manager.get_repo_path(repo_url)
-        if not repo_path:
-            result["error"] = "Failed to determine local path for repository"
-            result["status"] = "error"
-            return result
-        
-        result["local_path"] = str(repo_path)
-        
-        # Check if already cloned
-        if repo_manager.is_repo_cloned(repo_path):
-            repo_manager.update_last_access(repo_path)
-            result["status"] = "available"
-            return result
-        
-        # Check if currently cloning
-        if repo_manager.is_cloning(repo_path):
-            result["status"] = "cloning"
-            return result
-        
-        # Start cloning
-        result["status"] = "cloning"
-        
-        # Clone in background for now (simplified approach)
-        clone_result = repo_manager.clone_repository(repo_url, repo_path)
-        
-        if clone_result["success"]:
-            result["status"] = "available"
-        else:
-            result["error"] = clone_result["error"]
-            result["status"] = "failed"
-        
-    except Exception as e:
-        result["error"] = f"Unexpected error: {str(e)}"
-        result["status"] = "error"
-    
-    return result
-
 
 @mcp.tool()
 def repo_read(
     repo_url: str = Field(description="GitHub repository URL"),
     file_path: str = Field(description="Path to file within repository"),
     start_line: str = Field(default="1", description="Starting line number (1-indexed)"),
-    num_lines: Optional[str] = Field(default=None, description="Number of lines to read (None for all)")
+    num_lines: Optional[str] = Field(default=None, description="Number of lines to read (None for all)"),
+    force_update: bool = Field(default=False, description="Force update repository before reading")
 ) -> Dict[str, Any]:
-    """Read file contents from a cloned repository (equivalent to Read tool)."""
+    """Read file contents from a repository (automatically clones if needed)."""
     
     result = {
         "repo_url": repo_url,
@@ -415,23 +660,18 @@ def repo_read(
         
         # Update result with coerced values
         result["start_line"] = start_line
+        
+        # Ensure repository is available
+        ensure_result = repo_manager._ensure_repo_available(repo_url, force_update)
+        if not ensure_result["success"]:
+            result["error"] = ensure_result["error"]
+            return result
+        
         # Get repository path
         repo_path = repo_manager.get_repo_path(repo_url)
         if not repo_path:
             result["error"] = "Invalid repository URL"
             return result
-        
-        # Check if repository is available
-        if not repo_manager.is_repo_cloned(repo_path):
-            if repo_manager.is_cloning(repo_path):
-                result["error"] = "Repository is still cloning. Please try again in a moment."
-                return result
-            else:
-                result["error"] = "Repository not cloned. Use clone_repo() first."
-                return result
-        
-        # Update last access
-        repo_manager.update_last_access(repo_path)
         
         # Read file
         full_file_path = repo_path / file_path
@@ -487,9 +727,10 @@ def repo_grep(
     repo_url: str = Field(description="GitHub repository URL"),
     pattern: str = Field(description="Regular expression pattern to search for"),
     include: Optional[str] = Field(default=None, description="File pattern to include (e.g., '*.py', '*.{js,ts}')"),
-    path: Optional[str] = Field(default=None, description="Directory path within repo to search (default: root)")
+    path: Optional[str] = Field(default=None, description="Directory path within repo to search (default: root)"),
+    force_update: bool = Field(default=False, description="Force update repository before searching")
 ) -> Dict[str, Any]:
-    """Search for patterns in repository files (equivalent to Grep tool)."""
+    """Search for patterns in repository files (automatically clones if needed)."""
     
     result = {
         "repo_url": repo_url,
@@ -501,23 +742,17 @@ def repo_grep(
     }
     
     try:
+        # Ensure repository is available
+        ensure_result = repo_manager._ensure_repo_available(repo_url, force_update)
+        if not ensure_result["success"]:
+            result["error"] = ensure_result["error"]
+            return result
+        
         # Get repository path
         repo_path = repo_manager.get_repo_path(repo_url)
         if not repo_path:
             result["error"] = "Invalid repository URL"
             return result
-        
-        # Check if repository is available
-        if not repo_manager.is_repo_cloned(repo_path):
-            if repo_manager.is_cloning(repo_path):
-                result["error"] = "Repository is still cloning. Please try again in a moment."
-                return result
-            else:
-                result["error"] = "Repository not cloned. Use clone_repo() first."
-                return result
-        
-        # Update last access
-        repo_manager.update_last_access(repo_path)
         
         # Determine search path
         search_path = repo_path
@@ -582,9 +817,10 @@ def repo_grep(
 def repo_glob(
     repo_url: str = Field(description="GitHub repository URL"),
     pattern: str = Field(description="Glob pattern to match files (e.g., '*.py', '**/*.js')"),
-    path: Optional[str] = Field(default=None, description="Directory path within repo to search (default: root)")
+    path: Optional[str] = Field(default=None, description="Directory path within repo to search (default: root)"),
+    force_update: bool = Field(default=False, description="Force update repository before searching")
 ) -> Dict[str, Any]:
-    """Find files matching patterns in repository (equivalent to Glob tool)."""
+    """Find files matching patterns in repository (automatically clones if needed)."""
     
     result = {
         "repo_url": repo_url,
@@ -595,23 +831,17 @@ def repo_glob(
     }
     
     try:
+        # Ensure repository is available
+        ensure_result = repo_manager._ensure_repo_available(repo_url, force_update)
+        if not ensure_result["success"]:
+            result["error"] = ensure_result["error"]
+            return result
+        
         # Get repository path
         repo_path = repo_manager.get_repo_path(repo_url)
         if not repo_path:
             result["error"] = "Invalid repository URL"
             return result
-        
-        # Check if repository is available
-        if not repo_manager.is_repo_cloned(repo_path):
-            if repo_manager.is_cloning(repo_path):
-                result["error"] = "Repository is still cloning. Please try again in a moment."
-                return result
-            else:
-                result["error"] = "Repository not cloned. Use clone_repo() first."
-                return result
-        
-        # Update last access
-        repo_manager.update_last_access(repo_path)
         
         # Determine search path
         search_path = repo_path
@@ -670,6 +900,11 @@ def repo_status(
         "cloned": False,
         "cloning": False,
         "metadata": {},
+        "storage_info": {
+            "current_usage_gb": 0,
+            "storage_limit_gb": None,
+            "total_repositories": 0
+        },
         "error": None
     }
     
@@ -708,6 +943,14 @@ def repo_status(
                     result["metadata"] = json.load(f)
             except Exception:
                 pass
+        
+        # Get storage information
+        try:
+            result["storage_info"]["current_usage_gb"] = repo_manager.get_storage_usage_gb()
+            result["storage_info"]["storage_limit_gb"] = repo_manager.get_storage_limit_gb()
+            result["storage_info"]["total_repositories"] = len(repo_manager.get_repo_sizes())
+        except Exception:
+            pass
         
     except Exception as e:
         result["error"] = f"Unexpected error: {str(e)}"
