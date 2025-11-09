@@ -277,7 +277,8 @@ class FileAccessTracker:
     
     def __enter__(self):
         # Track file access by monkey-patching open
-        self.original_open = __builtins__['open']
+        import builtins
+        self.original_open = builtins.open
         
         def tracked_open(file, *args, **kwargs):
             # Only track files within the vault
@@ -294,12 +295,13 @@ class FileAccessTracker:
             
             return self.original_open(file, *args, **kwargs)
         
-        __builtins__['open'] = tracked_open
+        builtins.open = tracked_open
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         # Restore original open
-        __builtins__['open'] = self.original_open
+        import builtins
+        builtins.open = self.original_open
 
 def log_tool_call_decorator(func: Callable) -> Callable:
     """Decorator to log tool calls with execution time and file access tracking."""
@@ -336,7 +338,7 @@ def log_tool_call_decorator(func: Callable) -> Callable:
                 # Log the call
                 log_tool_call(
                     tool_name=func.__name__,
-                    parameters=dict(zip(func.__code__.co_varnames, args)) if args else kwargs,
+                    parameters=kwargs,  # Use kwargs directly - safer than introspection
                     accessed_files=tracker.accessed_files,
                     execution_time_ms=execution_time_ms,
                     success=success,
@@ -352,7 +354,7 @@ def log_tool_call_decorator(func: Callable) -> Callable:
                 # Log the failed call
                 log_tool_call(
                     tool_name=func.__name__,
-                    parameters=dict(zip(func.__code__.co_varnames, args)) if args else kwargs,
+                    parameters=kwargs,  # Use kwargs directly - safer than introspection
                     accessed_files=tracker.accessed_files,
                     execution_time_ms=execution_time_ms,
                     success=False,
